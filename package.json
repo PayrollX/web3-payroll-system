@@ -1,0 +1,22 @@
+{
+  "name": "web3-payroll-system",
+  "version": "1.0.0",
+  "description": "Web3 Payroll and Bonus Management System with ENS Integration",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm start",
+    "build": "cd frontend && npm run build",
+    "test": "cd contracts && npm test",
+    "deploy:testnet": "cd contracts && npm run deploy:sepolia",
+    "deploy:mainnet": "cd contracts && npm run deploy:mainnet"
+  },
+  "keywords": ["web3", "payroll", "ens", "ethereum", "blockchain"],
+  "author": "Dev Austin",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
+

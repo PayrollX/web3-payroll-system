@@ -1,0 +1,338 @@
+# ===========================================
+# Web3 Payroll System - Professional .gitignore
+# ===========================================
+
+# ===========================================
+# Environment Variables & Configuration
+# ===========================================
+# Environment files (contains sensitive data)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*.local
+
+# Configuration files with secrets
+config/secrets.js
+config/production.js
+config/development.js
+
+# ===========================================
+# Node.js Dependencies
+# ===========================================
+# Node modules (all subdirectories)
+node_modules/
+*/node_modules/
+**/node_modules/
+
+# Package lock files (keep package-lock.json for production)
+# Uncomment if you want to ignore lock files
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# ===========================================
+# Frontend Build & Cache
+# ===========================================
+# React build output
+frontend/build/
+frontend/dist/
+
+# React cache
+frontend/.cache/
+
+# Webpack cache
+frontend/.webpack/
+
+# Parcel cache
+frontend/.parcel-cache/
+
+# Next.js cache (if using Next.js in future)
+frontend/.next/
+
+# ===========================================
+# Backend Build & Logs
+# ===========================================
+# Backend build output
+backend/build/
+backend/dist/
+
+# Log files
+backend/logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# ===========================================
+# Smart Contracts & Blockchain
+# ===========================================
+# Hardhat artifacts and cache
+contracts/artifacts/
+contracts/cache/
+contracts/typechain/
+contracts/typechain-types/
+
+# Hardhat compilation output
+contracts/compiled/
+
+# Deployment artifacts
+contracts/deployments/
+contracts/deployments.json
+
+# Gas reports
+contracts/gas-report.txt
+contracts/coverage.json
+
+# Hardhat network files
+contracts/hardhat.log
+
+# ===========================================
+# Database & Storage
+# ===========================================
+# MongoDB data
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Redis dump files
+dump.rdb
+
+# Database backups
+*.sql
+*.dump
+
+# ===========================================
+# IDE & Editor Files
+# ===========================================
+# Visual Studio Code
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# ===========================================
+# Operating System Files
+# ===========================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ===========================================
+# Testing & Coverage
+# ===========================================
+# Test coverage
+coverage/
+*.lcov
+.nyc_output
+
+# Jest
+jest.config.js
+
+# Cypress
+cypress/videos/
+cypress/screenshots/
+
+# ===========================================
+# Temporary Files
+# ===========================================
+# Temporary folders
+tmp/
+temp/
+.tmp/
+.temp/
+
+# Runtime files
+*.tmp
+*.temp
+
+# ===========================================
+# Security & Keys
+# ===========================================
+# Private keys and wallets
+*.pem
+*.key
+*.p12
+*.pfx
+wallet.json
+keystore/
+wallets/
+
+# API keys and secrets
+secrets.json
+api-keys.json
+credentials.json
+
+# ===========================================
+# Documentation Build
+# ===========================================
+# Generated documentation
+docs/build/
+docs/_build/
+site/
+
+# ===========================================
+# Package Managers
+# ===========================================
+# npm
+.npm
+.npmrc
+
+# Yarn
+.yarn/
+.yarnrc.yml
+.yarn-integrity
+
+# pnpm
+.pnpm-debug.log*
+
+# ===========================================
+# TypeScript
+# ===========================================
+# TypeScript build info
+*.tsbuildinfo
+
+# ===========================================
+# ESLint & Prettier
+# ===========================================
+# ESLint cache
+.eslintcache
+
+# Prettier cache
+.prettiercache
+
+# ===========================================
+# Docker
+# ===========================================
+# Docker files (uncomment if using Docker)
+# Dockerfile
+# docker-compose.yml
+# docker-compose.override.yml
+# .dockerignore
+
+# ===========================================
+# Miscellaneous
+# ===========================================
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Archive files
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Lock files for specific tools
+.sass-cache/
+.connect.lock
+.typingsrc
+
+# ===========================================
+# Project Specific
+# ===========================================
+# Custom build outputs
+build/
+dist/
+
+# Local development files
+local/
+dev/
+
+# Generated files
+generated/
+
+# ===========================================
+# Keep Important Files
+# ===========================================
+# Keep package.json and package-lock.json
+!package.json
+!package-lock.json
+!*/package.json
+!*/package-lock.json
+
+# Keep README files
+!README.md
+!*/README.md
+
+# Keep example files
+!*.example
+!env.example
+!*/env.example
+
+# Keep configuration templates
+!config.example.js
+!*/config.example.js
