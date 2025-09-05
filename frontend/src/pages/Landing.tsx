@@ -54,7 +54,7 @@ import {
   Lock,
 } from '@mui/icons-material'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
-import { useAccount } from 'wagmi'
+import { useAuth } from '../context/AuthContext'
 import { Link, useNavigate } from 'react-router-dom'
 import background from '../assets/background.png'
 
@@ -106,7 +106,7 @@ const StatCard: React.FC<StatCardProps> = ({ value, label, sublabel, color }) =>
 const Landing: React.FC = () => {
   const theme = useTheme()
   const navigate = useNavigate()
-  const { isConnected } = useAccount()
+  const { isConnected, hasCompany } = useAuth()
   const [showFeatures, setShowFeatures] = useState(false)
   const [animatedStats, setAnimatedStats] = useState({
     users: 0,
@@ -119,14 +119,8 @@ const Landing: React.FC = () => {
     return () => clearTimeout(timer)
   }, [])
 
-  useEffect(() => {
-    if (isConnected) {
-      const timer = setTimeout(() => {
-        navigate('/dashboard')
-      }, 1500)
-      return () => clearTimeout(timer)
-    }
-  }, [isConnected, navigate])
+  // Removed automatic redirect - let user choose their path
+  // This was causing redirect loops with ProtectedRoute
 
   useEffect(() => {
     const animateStats = () => {
@@ -293,14 +287,50 @@ const Landing: React.FC = () => {
 
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6 mb-16">
-              <Link 
-                to="/register"
-                className="group bg-gradient-to-r from-blue-600 to-blue-700 text-white px-10 py-4 rounded-xl font-semibold text-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center space-x-2 no-underline"
-              >
-                <WalletIcon className="w-5 h-5" />
-                <span>Register Your Company</span>
-                <ArrowForwardIcon className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </Link>
+              {/* Dynamic CTA based on user state */}
+              {isConnected && hasCompany ? (
+                <Button
+                  variant="contained"
+                  size="large"
+                  onClick={() => navigate('/dashboard')}
+                  sx={{
+                    px: 4,
+                    py: 2,
+                    fontSize: '1.1rem',
+                    borderRadius: 3,
+                    background: 'linear-gradient(45deg, #667eea, #764ba2)',
+                    '&:hover': {
+                      background: 'linear-gradient(45deg, #5a67d8, #6b46c1)',
+                      transform: 'scale(1.05)',
+                    },
+                  }}
+                  endIcon={<ArrowForwardIcon />}
+                >
+                  Go to Dashboard
+                </Button>
+              ) : isConnected && !hasCompany ? (
+                <Button
+                  variant="contained"
+                  size="large"
+                  onClick={() => navigate('/register')}
+                  sx={{
+                    px: 4,
+                    py: 2,
+                    fontSize: '1.1rem',
+                    borderRadius: 3,
+                    background: 'linear-gradient(45deg, #f59e0b, #d97706)',
+                    '&:hover': {
+                      background: 'linear-gradient(45deg, #d97706, #b45309)',
+                      transform: 'scale(1.05)',
+                    },
+                  }}
+                  endIcon={<ArrowForwardIcon />}
+                >
+                  Register Your Company
+                </Button>
+              ) : (
+                <ConnectButton />
+              )}
               <button className="group bg-white/60 backdrop-blur-sm border border-white/20 text-gray-700 px-8 py-4 rounded-xl font-semibold text-lg hover:shadow-lg transform hover:scale-105 transition-all duration-300 flex items-center space-x-2">
                 <PlayCircle className="w-5 h-5" />
                 <span>Watch Demo</span>

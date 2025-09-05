@@ -50,3 +50,4 @@ function shallowCompare(objA, objB) {
 export const shallow = shallowCompare;
 export default shallowCompare;
 
+

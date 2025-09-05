@@ -1,47 +1,128 @@
 const express = require('express')
 const router = express.Router()
 const Employee = require('../models/Employee')
-const { validateEmployee, validateUpdateEmployee } = require('../middleware/validation')
-const authMiddleware = require('../middleware/auth')
+const Company = require('../models/Company')
+const { ethers } = require('ethers')
+const winston = require('winston')
 
 /**
  * Employee routes for Web3 Payroll System
  * @author Dev Austin
  */
 
-// Get all employees
-router.get('/', authMiddleware, async (req, res) => {
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.json(),
+  transports: [
+    new winston.transports.File({ filename: 'logs/employees.log' }),
+  ]
+})
+
+// Middleware to extract wallet address and get company
+const extractCompanyFromWallet = async (req, res, next) => {
   try {
-    const { department, active, page = 1, limit = 10 } = req.query
+    const walletAddress = req.headers['x-wallet-address']
     
-    let query = {}
-    if (department) {
-      query['employmentDetails.department'] = department
+    if (!walletAddress) {
+      return res.status(401).json({
+        error: 'Wallet address required',
+        message: 'Please provide wallet address in x-wallet-address header'
+      })
     }
-    if (active !== undefined) {
-      query['employmentDetails.isActive'] = active === 'true'
+    
+    if (!ethers.utils.isAddress(walletAddress)) {
+      return res.status(400).json({
+        error: 'Invalid wallet address'
+      })
     }
 
+    const company = await Company.findByWallet(walletAddress.toLowerCase())
+    
+    if (!company) {
+      return res.status(404).json({
+        error: 'Company not found',
+        message: 'Please register your company first'
+      })
+    }
+
+    req.company = company
+    req.walletAddress = walletAddress.toLowerCase()
+    next()
+  } catch (error) {
+    logger.error('Company extraction failed', { error: error.message })
+    res.status(500).json({ error: 'Authentication failed' })
+  }
+}
+
+// Get all employees for the authenticated company
+router.get('/', extractCompanyFromWallet, async (req, res) => {
+  try {
+    // Disable caching to prevent 304 responses
+    res.set({
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    })
+    
+    const { page = 1, limit = 10 } = req.query
+    
+    // Filter by company
+    let query = { companyId: req.company._id }
+
     const employees = await Employee.find(query)
+      .populate('companyId', 'name ensDomain')
       .limit(limit * 1)
       .skip((page - 1) * limit)
-      .sort({ createdAt: -1 })
+      .sort({ _id: -1 })
 
     const total = await Employee.countDocuments(query)
 
+    // Transform to match frontend expectations
+    const transformedEmployees = employees.map(emp => ({
+      _id: emp._id,
+      personalInfo: {
+        name: emp.name,
+        email: `${emp.ensName}@${emp.companyId?.ensDomain || 'company.eth'}`,
+      },
+      employmentDetails: {
+        isActive: true, // All employees are active in minimal model
+        position: 'Employee',
+        department: 'General'
+      },
+      payrollSettings: {
+        walletAddress: emp.walletAddress,
+        salaryAmount: emp.salaryAmount,
+        paymentFrequency: emp.paymentToken === 'ETH' ? 'MONTHLY' : 'MONTHLY',
+        preferredToken: emp.paymentToken
+      },
+      ensDetails: {
+        subdomain: emp.ensName,
+        fullDomain: `${emp.ensName}.${emp.companyId?.ensDomain || 'company.eth'}`
+      }
+    }))
+
     res.json({
-      employees,
-      totalPages: Math.ceil(total / limit),
-      currentPage: page,
-      total
+      success: true,
+      data: {
+        employees: transformedEmployees,
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(total / limit)
+      }
     })
   } catch (error) {
-    res.status(500).json({ error: error.message })
+    console.error('Error fetching employees:', error)
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch employees',
+      message: error.message 
+    })
   }
 })
 
 // Get employee by ID
-router.get('/:id', authMiddleware, async (req, res) => {
+router.get('/:id', extractCompanyFromWallet, async (req, res) => {
   try {
     const employee = await Employee.findById(req.params.id)
     if (!employee) {
@@ -54,9 +135,9 @@ router.get('/:id', authMiddleware, async (req, res) => {
 })
 
 // Get employee by wallet address
-router.get('/wallet/:address', authMiddleware, async (req, res) => {
+router.get('/wallet/:address', async (req, res) => {
   try {
-    const employee = await Employee.findByWalletAddress(req.params.address)
+    const employee = await Employee.findOne({ walletAddress: req.params.address.toLowerCase() })
     if (!employee) {
       return res.status(404).json({ error: 'Employee not found' })
     }
@@ -67,9 +148,9 @@ router.get('/wallet/:address', authMiddleware, async (req, res) => {
 })
 
 // Get employee by ENS subdomain
-router.get('/ens/:subdomain', authMiddleware, async (req, res) => {
+router.get('/ens/:subdomain', async (req, res) => {
   try {
-    const employee = await Employee.findByENSSubdomain(req.params.subdomain)
+    const employee = await Employee.findOne({ ensName: req.params.subdomain.toLowerCase() })
     if (!employee) {
       return res.status(404).json({ error: 'Employee not found' })
     }
@@ -80,177 +161,129 @@ router.get('/ens/:subdomain', authMiddleware, async (req, res) => {
 })
 
 // Create new employee
-router.post('/', authMiddleware, validateEmployee, async (req, res) => {
+router.post('/', extractCompanyFromWallet, async (req, res) => {
   try {
+    // Handle both flat and nested data structures
+    let name, walletAddress, salaryAmount, paymentToken = 'ETH'
+    
+    if (req.body.personalInfo) {
+      // Nested structure from frontend
+      name = req.body.personalInfo.name
+      walletAddress = req.body.payrollSettings?.walletAddress
+      salaryAmount = req.body.payrollSettings?.salaryAmount
+      paymentToken = req.body.payrollSettings?.preferredToken || 'ETH'
+    } else {
+      // Flat structure for direct API calls
+      name = req.body.name
+      walletAddress = req.body.walletAddress
+      salaryAmount = req.body.salaryAmount
+      paymentToken = req.body.paymentToken || 'ETH'
+    }
+
+    // Validate required fields
+    if (!name || !walletAddress || !salaryAmount) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        required: ['name', 'walletAddress', 'salaryAmount']
+      })
+    }
+
+    // Validate wallet address
+    if (!ethers.utils.isAddress(walletAddress)) {
+      return res.status(400).json({
+        error: 'Invalid wallet address'
+      })
+    }
+
+    // Check if wallet already exists
+    const existingEmployee = await Employee.findOne({ walletAddress: walletAddress.toLowerCase() })
+    if (existingEmployee) {
+      return res.status(409).json({
+        error: 'Wallet address already in use',
+        message: 'An employee with this wallet address already exists'
+      })
+    }
+
+    // Create employee data (minimal)
     const employeeData = {
-      ...req.body,
-      createdBy: req.user.address,
-      updatedBy: req.user.address
+      companyId: req.company._id,
+      name: name.trim(),
+      walletAddress: walletAddress.toLowerCase(),
+      salaryAmount: salaryAmount.toString(),
+      paymentToken: paymentToken
     }
 
     const employee = new Employee(employeeData)
     await employee.save()
 
+    logger.info('Employee created successfully', {
+      companyId: req.company._id,
+      employeeId: employee._id,
+      employeeName: name,
+      createdBy: req.walletAddress
+    })
+
     res.status(201).json({
+      success: true,
       message: 'Employee created successfully',
-      employee
+      employee: {
+        _id: employee._id,
+        name: employee.name,
+        ensName: employee.ensName,
+        walletAddress: employee.walletAddress,
+        salaryAmount: employee.salaryAmount,
+        paymentToken: employee.paymentToken,
+        ensDomain: `${employee.ensName}.${req.company.ensDomain}`
+      }
     })
   } catch (error) {
+    logger.error('Employee creation failed', {
+      error: error.message,
+      companyId: req.company?._id,
+      walletAddress: req.walletAddress
+    })
+
     if (error.code === 11000) {
-      res.status(400).json({ 
-        error: 'Employee with this wallet address or email already exists' 
+      // Handle duplicate key errors
+      if (error.keyPattern && error.keyPattern['payrollSettings.walletAddress']) {
+        return res.status(409).json({ 
+          error: 'Wallet address already in use',
+          message: 'An employee with this wallet address already exists'
+        })
+      }
+      if (error.keyPattern && error.keyPattern['personalInfo.email']) {
+        return res.status(409).json({ 
+          error: 'Email already in use',
+          message: 'An employee with this email already exists in your company'
+        })
+      }
+      return res.status(409).json({ 
+        error: 'Duplicate entry',
+        message: 'Employee with this information already exists'
       })
-    } else {
-      res.status(500).json({ error: error.message })
-    }
-  }
-})
-
-// Update employee
-router.put('/:id', authMiddleware, validateUpdateEmployee, async (req, res) => {
-  try {
-    const employee = await Employee.findByIdAndUpdate(
-      req.params.id,
-      { 
-        ...req.body, 
-        updatedBy: req.user.address 
-      },
-      { new: true, runValidators: true }
-    )
-
-    if (!employee) {
-      return res.status(404).json({ error: 'Employee not found' })
     }
 
-    res.json({
-      message: 'Employee updated successfully',
-      employee
+    res.status(500).json({ 
+      error: 'Employee creation failed',
+      message: 'An error occurred while creating the employee'
     })
-  } catch (error) {
-    res.status(500).json({ error: error.message })
-  }
-})
-
-// Deactivate employee
-router.patch('/:id/deactivate', authMiddleware, async (req, res) => {
-  try {
-    const employee = await Employee.findByIdAndUpdate(
-      req.params.id,
-      { 
-        'employmentDetails.isActive': false,
-        updatedBy: req.user.address 
-      },
-      { new: true }
-    )
-
-    if (!employee) {
-      return res.status(404).json({ error: 'Employee not found' })
-    }
-
-    res.json({
-      message: 'Employee deactivated successfully',
-      employee
-    })
-  } catch (error) {
-    res.status(500).json({ error: error.message })
-  }
-})
-
-// Activate employee
-router.patch('/:id/activate', authMiddleware, async (req, res) => {
-  try {
-    const employee = await Employee.findByIdAndUpdate(
-      req.params.id,
-      { 
-        'employmentDetails.isActive': true,
-        updatedBy: req.user.address 
-      },
-      { new: true }
-    )
-
-    if (!employee) {
-      return res.status(404).json({ error: 'Employee not found' })
-    }
-
-    res.json({
-      message: 'Employee activated successfully',
-      employee
-    })
-  } catch (error) {
-    res.status(500).json({ error: error.message })
   }
 })
 
 // Delete employee
-router.delete('/:id', authMiddleware, async (req, res) => {
+router.delete('/:id', extractCompanyFromWallet, async (req, res) => {
   try {
-    const employee = await Employee.findByIdAndDelete(req.params.id)
+    const employee = await Employee.findOneAndDelete({ 
+      _id: req.params.id, 
+      companyId: req.company._id 
+    })
     if (!employee) {
       return res.status(404).json({ error: 'Employee not found' })
     }
 
-    res.json({ message: 'Employee deleted successfully' })
-  } catch (error) {
-    res.status(500).json({ error: error.message })
-  }
-})
-
-// Get employees with pending payments
-router.get('/pending-payments/list', authMiddleware, async (req, res) => {
-  try {
-    const employees = await Employee.findActiveEmployees()
-    const pendingEmployees = employees.filter(emp => emp.isPaymentDue())
-
-    res.json({
-      employees: pendingEmployees,
-      count: pendingEmployees.length
-    })
-  } catch (error) {
-    res.status(500).json({ error: error.message })
-  }
-})
-
-// Update employee payment timestamp
-router.patch('/:id/payment', authMiddleware, async (req, res) => {
-  try {
-    const { timestamp } = req.body
-    const employee = await Employee.findById(req.params.id)
-    
-    if (!employee) {
-      return res.status(404).json({ error: 'Employee not found' })
-    }
-
-    await employee.updateLastPayment(timestamp)
-
-    res.json({
-      message: 'Payment timestamp updated successfully',
-      employee
-    })
-  } catch (error) {
-    res.status(500).json({ error: error.message })
-  }
-})
-
-// Get employee statistics
-router.get('/stats/overview', authMiddleware, async (req, res) => {
-  try {
-    const totalEmployees = await Employee.countDocuments()
-    const activeEmployees = await Employee.countDocuments({ 'employmentDetails.isActive': true })
-    const pendingPayments = await Employee.findActiveEmployees()
-    const pendingCount = pendingPayments.filter(emp => emp.isPaymentDue()).length
-
-    // Department breakdown
-    const departmentStats = await Employee.aggregate([
-      { $match: { 'employmentDetails.isActive': true } },
-      { $group: { _id: '$employmentDetails.department', count: { $sum: 1 } } }
-    ])
-
-    res.json({
-      totalEmployees,
-      activeEmployees,
-      inactiveEmployees: totalEmployees - activeEmployees,
-      pendingPayments: pendingCount,
-      departmentBreakdown: departmentStats
+    res.json({ 
+      success: true,
+      message: 'Employee deleted successfully' 
     })
   } catch (error) {
     res.status(500).json({ error: error.message })

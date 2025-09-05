@@ -1,169 +1,81 @@
 const mongoose = require('mongoose')
 
 /**
- * Employee model for Web3 Payroll System
- * @author Dev Austin
+ * Web3 Employee Model - Ultra Minimal
+ * ONLY name + ENS + wallet + salary
+ * NO personal data, NO tracking
  */
 
 const employeeSchema = new mongoose.Schema({
-  // Personal Information
-  personalInfo: {
-    name: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
-    phone: { type: String },
-    address: {
-      street: String,
-      city: String,
-      state: String,
-      zipCode: String,
-      country: String
-    }
+  // Company reference
+  companyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
+    required: true
   },
-
-  // Employment Details
-  employmentDetails: {
-    startDate: { type: Date, required: true },
-    position: { type: String, required: true },
-    department: { type: String, required: true },
-    employmentType: { 
-      type: String, 
-      enum: ['full-time', 'part-time', 'contractor'], 
-      default: 'full-time' 
-    },
-    isActive: { type: Boolean, default: true }
+  
+  // Employee name (for ENS generation only)
+  name: {
+    type: String,
+    required: true,
+    trim: true,
+    maxlength: 50
   },
-
-  // Payroll Settings
-  payrollSettings: {
-    walletAddress: { type: String, required: true, unique: true },
-    salaryAmount: { type: String, required: true }, // Stored as string to handle large numbers
-    paymentFrequency: { 
-      type: String, 
-      enum: ['WEEKLY', 'BIWEEKLY', 'MONTHLY', 'QUARTERLY'], 
-      default: 'MONTHLY' 
-    },
-    preferredToken: { type: String, required: true },
-    lastPaymentTimestamp: { type: Number, default: 0 }
+  
+  // ENS subdomain (auto-generated from name)
+  ensName: {
+    type: String,
+    lowercase: true
   },
-
-  // ENS Details
-  ensDetails: {
-    subdomain: { type: String, required: true },
-    fullDomain: { type: String, required: true },
-    ensNode: { type: String, required: true },
-    resolverAddress: { type: String }
+  
+  // Wallet for payments (essential for payroll)
+  walletAddress: {
+    type: String,
+    required: true,
+    lowercase: true
   },
-
-  // Tax Information
-  taxInformation: {
-    taxId: { type: String },
-    withholdings: { type: Number, default: 0 },
-    jurisdiction: { type: String },
-    taxExempt: { type: Boolean, default: false }
+  
+  // Salary amount (for payroll)
+  salaryAmount: {
+    type: String,
+    required: true,
+    default: '0'
   },
+  
+  // Payment token
+  paymentToken: {
+    type: String,
+    enum: ['ETH', 'USDC', 'USDT', 'DAI'],
+    default: 'ETH'
+  }
 
-  // Blockchain Information
-  blockchainInfo: {
-    contractAddress: { type: String },
-    transactionHash: { type: String },
-    blockNumber: { type: Number },
-    gasUsed: { type: Number }
-  },
-
-  // Metadata
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now },
-  createdBy: { type: String, required: true },
-  updatedBy: { type: String }
 }, {
-  timestamps: true
+  timestamps: false, // No tracking
+  versionKey: false  // No version tracking
 })
 
-// Indexes for better query performance
-employeeSchema.index({ 'payrollSettings.walletAddress': 1 })
-employeeSchema.index({ 'ensDetails.subdomain': 1 })
-employeeSchema.index({ 'employmentDetails.department': 1 })
-employeeSchema.index({ 'employmentDetails.isActive': 1 })
-employeeSchema.index({ 'personalInfo.email': 1 })
+// Essential indexes only
+employeeSchema.index({ companyId: 1, ensName: 1 }, { unique: true })
+employeeSchema.index({ walletAddress: 1 })
 
-// Virtual for full name
-employeeSchema.virtual('fullName').get(function() {
-  return this.personalInfo.name
-})
-
-// Virtual for ENS domain
-employeeSchema.virtual('ensDomain').get(function() {
-  return this.ensDetails.fullDomain
-})
-
-// Pre-save middleware
+// Generate ENS name from employee name
 employeeSchema.pre('save', function(next) {
-  this.updatedAt = new Date()
+  if (this.isModified('name') || this.isNew) {
+    this.ensName = this.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '')
+      .substring(0, 20)
+  }
   next()
 })
 
-// Static methods
-employeeSchema.statics.findByWalletAddress = function(walletAddress) {
-  return this.findOne({ 'payrollSettings.walletAddress': walletAddress })
+// Essential methods only
+employeeSchema.statics.findByCompany = function(companyId) {
+  return this.find({ companyId })
 }
 
-employeeSchema.statics.findByENSSubdomain = function(subdomain) {
-  return this.findOne({ 'ensDetails.subdomain': subdomain })
+employeeSchema.statics.findByWallet = function(wallet) {
+  return this.findOne({ walletAddress: wallet.toLowerCase() })
 }
-
-employeeSchema.statics.findActiveEmployees = function() {
-  return this.find({ 'employmentDetails.isActive': true })
-}
-
-employeeSchema.statics.findByDepartment = function(department) {
-  return this.find({ 'employmentDetails.department': department })
-}
-
-// Instance methods
-employeeSchema.methods.isPaymentDue = function() {
-  const now = Date.now()
-  const lastPayment = this.payrollSettings.lastPaymentTimestamp
-  const frequency = this.payrollSettings.paymentFrequency
-  
-  let interval
-  switch (frequency) {
-    case 'WEEKLY':
-      interval = 7 * 24 * 60 * 60 * 1000 // 7 days
-      break
-    case 'BIWEEKLY':
-      interval = 14 * 24 * 60 * 60 * 1000 // 14 days
-      break
-    case 'MONTHLY':
-      interval = 30 * 24 * 60 * 60 * 1000 // 30 days
-      break
-    case 'QUARTERLY':
-      interval = 90 * 24 * 60 * 60 * 1000 // 90 days
-      break
-    default:
-      interval = 30 * 24 * 60 * 60 * 1000
-  }
-  
-  return (now - lastPayment) >= interval
-}
-
-employeeSchema.methods.getPaymentAmount = function() {
-  return this.payrollSettings.salaryAmount
-}
-
-employeeSchema.methods.updateLastPayment = function(timestamp = Date.now()) {
-  this.payrollSettings.lastPaymentTimestamp = timestamp
-  return this.save()
-}
-
-// Transform JSON output
-employeeSchema.set('toJSON', {
-  virtuals: true,
-  transform: function(doc, ret) {
-    delete ret._id
-    delete ret.__v
-    return ret
-  }
-})
 
 module.exports = mongoose.model('Employee', employeeSchema)
-

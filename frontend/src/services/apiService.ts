@@ -30,7 +30,7 @@ export interface EmployeeData {
   payrollSettings: {
     walletAddress: string
     salaryAmount: string
-    paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'QUARTERLY'
+    paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'ONE_TIME'
     preferredToken: string
     lastPaymentTimestamp: number
   }
@@ -139,6 +139,7 @@ export interface EmployeesResponse {
 export class ApiService {
   private baseURL: string
   private authToken: string | null = null
+  private walletAddress: string | null = null
 
   constructor() {
     this.baseURL = API_ENDPOINTS.BASE_URL
@@ -169,6 +170,13 @@ export class ApiService {
   }
 
   /**
+   * Set wallet address for API requests
+   */
+  setWalletAddress(address: string | null): void {
+    this.walletAddress = address
+  }
+
+  /**
    * Get headers for API requests
    */
   private getHeaders(): HeadersInit {
@@ -178,6 +186,10 @@ export class ApiService {
 
     if (this.authToken) {
       headers['Authorization'] = `Bearer ${this.authToken}`
+    }
+
+    if (this.walletAddress) {
+      headers['x-wallet-address'] = this.walletAddress
     }
 
     return headers
@@ -191,7 +203,11 @@ export class ApiService {
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
     try {
-      const url = `${this.baseURL}${endpoint}`
+      // Add cache-busting parameter for GET requests
+      const cacheBuster = options.method === 'GET' || !options.method ? 
+        `${endpoint.includes('?') ? '&' : '?'}_t=${Date.now()}` : ''
+      const url = `${this.baseURL}${endpoint}${cacheBuster}`
+      
       const response = await fetch(url, {
         ...options,
         headers: {
@@ -255,8 +271,8 @@ export class ApiService {
   /**
    * Create new employee
    */
-  async createEmployee(employeeData: Partial<EmployeeData>): Promise<ApiResponse<EmployeeData>> {
-    return this.request<EmployeeData>(API_ENDPOINTS.EMPLOYEES, {
+  async createEmployee(employeeData: Partial<EmployeeData> | any): Promise<ApiResponse<any>> {
+    return this.request<any>(API_ENDPOINTS.EMPLOYEES, {
       method: 'POST',
       body: JSON.stringify(employeeData),
     })

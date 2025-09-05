@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Box,
   Typography,
@@ -17,10 +18,6 @@ import {
   DialogContent,
   DialogActions,
   Chip,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   CircularProgress,
   IconButton,
   Tooltip,
@@ -50,12 +47,7 @@ import { ConnectButton } from '@rainbow-me/rainbowkit'
 
 interface CompanyFormData {
   companyName: string
-  ownerName: string
-  ownerEmail: string
   companyDomain: string
-  industry: string
-  companySize: string
-  description: string
 }
 
 const steps = [
@@ -65,41 +57,17 @@ const steps = [
   'Confirmation'
 ]
 
-const companySizes = [
-  { value: '1-10', label: '1-10 employees' },
-  { value: '11-50', label: '11-50 employees' },
-  { value: '51-200', label: '51-200 employees' },
-  { value: '201-500', label: '201-500 employees' },
-  { value: '500+', label: '500+ employees' }
-]
-
-const industries = [
-  'Technology',
-  'Finance',
-  'Healthcare',
-  'Education',
-  'Manufacturing',
-  'Retail',
-  'Consulting',
-  'Media',
-  'Real Estate',
-  'Other'
-]
 
 const CompanyRegistration: React.FC = () => {
   const theme = useTheme()
   const { address, isConnected } = useAccount()
+  const navigate = useNavigate()
 
   // Component state
   const [activeStep, setActiveStep] = useState(0)
   const [formData, setFormData] = useState<CompanyFormData>({
     companyName: '',
-    ownerName: '',
-    ownerEmail: '',
-    companyDomain: '',
-    industry: '',
-    companySize: '1-10',
-    description: ''
+    companyDomain: ''
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -127,8 +95,8 @@ const CompanyRegistration: React.FC = () => {
   // Check for existing company
   const checkExistingCompany = async () => {
     try {
-      const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001'
-      const response = await fetch(`${baseUrl}/api/companies/profile`, {
+      const baseUrl = (process.env.REACT_APP_API_URL || 'http://localhost:3001') + '/api'
+      const response = await fetch(`${baseUrl}/companies/profile`, {
         headers: {
           'x-wallet-address': address!
         }
@@ -183,8 +151,8 @@ const CompanyRegistration: React.FC = () => {
     setCheckingDomain(true)
     setError(null)
     try {
-      const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001'
-      const response = await fetch(`${baseUrl}/api/companies/check-domain/${formData.companyDomain}`)
+      const baseUrl = (process.env.REACT_APP_API_URL || 'http://localhost:3001') + '/api'
+      const response = await fetch(`${baseUrl}/companies/check-domain/${formData.companyDomain}`)
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
@@ -221,8 +189,8 @@ const CompanyRegistration: React.FC = () => {
     setError(null)
 
     try {
-      const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001'
-      const response = await fetch(`${baseUrl}/api/companies/register`, {
+      const baseUrl = (process.env.REACT_APP_API_URL || 'http://localhost:3001') + '/api'
+      const response = await fetch(`${baseUrl}/companies/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -238,6 +206,11 @@ const CompanyRegistration: React.FC = () => {
         setSuccess(true)
         setShowSuccessDialog(true)
         setActiveStep(3)
+        
+        // Automatically redirect to dashboard after 3 seconds
+        setTimeout(() => {
+          navigate('/dashboard')
+        }, 3000)
       } else {
         setError(data.message || data.error || 'Registration failed')
       }
@@ -273,7 +246,7 @@ const CompanyRegistration: React.FC = () => {
       case 0:
         return isConnected
       case 1:
-        return !!(formData.companyName && formData.ownerName && formData.ownerEmail)
+        return !!(formData.companyName)
       case 2:
         return !!(formData.companyDomain && domainAvailable)
       default:
@@ -326,68 +299,6 @@ const CompanyRegistration: React.FC = () => {
                   onChange={(e) => handleInputChange('companyName', e.target.value)}
                   required
                   helperText="Enter your company's official name"
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Your Name"
-                  value={formData.ownerName}
-                  onChange={(e) => handleInputChange('ownerName', e.target.value)}
-                  required
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Email Address"
-                  type="email"
-                  value={formData.ownerEmail}
-                  onChange={(e) => handleInputChange('ownerEmail', e.target.value)}
-                  required
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <FormControl fullWidth>
-                  <InputLabel>Industry</InputLabel>
-                  <Select
-                    value={formData.industry}
-                    label="Industry"
-                    onChange={(e) => handleInputChange('industry', e.target.value)}
-                  >
-                    {industries.map(industry => (
-                      <MenuItem key={industry} value={industry}>
-                        {industry}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <FormControl fullWidth>
-                  <InputLabel>Company Size</InputLabel>
-                  <Select
-                    value={formData.companySize}
-                    label="Company Size"
-                    onChange={(e) => handleInputChange('companySize', e.target.value)}
-                  >
-                    {companySizes.map(size => (
-                      <MenuItem key={size.value} value={size.value}>
-                        {size.label}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Description (Optional)"
-                  multiline
-                  rows={3}
-                  value={formData.description}
-                  onChange={(e) => handleInputChange('description', e.target.value)}
-                  helperText="Brief description of your company"
                 />
               </Grid>
             </Grid>
@@ -606,17 +517,24 @@ const CompanyRegistration: React.FC = () => {
       <Dialog open={showSuccessDialog} onClose={() => setShowSuccessDialog(false)}>
         <DialogTitle>🎉 Registration Complete!</DialogTitle>
         <DialogContent>
-          <Typography>
-            Your company has been successfully registered on the blockchain. 
-            You can now start managing your employees and payroll through the dashboard.
+          <Typography gutterBottom>
+            Your company has been successfully registered on the blockchain with ENS domain purchase confirmed!
+          </Typography>
+          {registeredCompany && (
+            <Box sx={{ mt: 2, p: 2, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+              <Typography variant="subtitle2" color="primary">Company Details:</Typography>
+              <Typography variant="body2">Name: {registeredCompany.name}</Typography>
+              <Typography variant="body2">ENS Domain: {registeredCompany.ensDomain}</Typography>
+              <Typography variant="body2">Owner: {registeredCompany.ownerWallet}</Typography>
+            </Box>
+          )}
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+            🔄 Redirecting to dashboard in 3 seconds...
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setShowSuccessDialog(false)}>
-            Close
-          </Button>
-          <Button variant="contained" href="/dashboard">
-            Go to Dashboard
+          <Button onClick={() => navigate('/dashboard')} variant="contained">
+            Go to Dashboard Now
           </Button>
         </DialogActions>
       </Dialog>

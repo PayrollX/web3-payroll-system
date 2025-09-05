@@ -7,7 +7,6 @@ import {
   injectedWallet,
   metaMaskWallet,
   walletConnectWallet,
-  coinbaseWallet,
 } from '@rainbow-me/rainbowkit/wallets'
 
 // Define local hardhat chain for testing
@@ -46,10 +45,7 @@ const createWalletList = () => {
       projectId: walletConnectProjectId || 'demo-project-id',
       chains: [hardhat, mainnet, sepolia, goerli] 
     }),
-    coinbaseWallet({ 
-      appName: 'Web3 Payroll System',
-      chains: [hardhat, mainnet, sepolia, goerli] 
-    }),
+    // Removed coinbaseWallet to eliminate websocket errors in development
   ]
 
   // Add WalletConnect if we have a valid project ID

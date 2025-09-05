@@ -1,11 +1,11 @@
 import React from 'react'
 import { Navigate } from 'react-router-dom'
-import { useAccount } from 'wagmi'
 import { Box, CircularProgress, Typography } from '@mui/material'
+import { useAuth } from '../../context/AuthContext'
 
 /**
- * Protected Route component that requires wallet connection
- * @author Dev Austin
+ * Protected Route component that requires wallet connection and company registration
+ * Uses centralized AuthContext to prevent conflicts and loops
  */
 
 interface ProtectedRouteProps {
@@ -13,10 +13,12 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { isConnected, isConnecting } = useAccount()
+  const { isConnected, hasCompany, loading } = useAuth()
 
-  // Show loading state while connecting
-  if (isConnecting) {
+  console.log('🛡️ ProtectedRoute: isConnected:', isConnected, 'hasCompany:', hasCompany, 'loading:', loading)
+
+  // Show loading state while checking company status
+  if (loading) {
     return (
       <Box
         sx={{
@@ -30,7 +32,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
       >
         <CircularProgress size={60} />
         <Typography variant="h6" color="text.secondary">
-          Connecting to wallet...
+          Checking authentication status...
         </Typography>
       </Box>
     )
@@ -41,10 +43,14 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     return <Navigate to="/" replace />
   }
 
-  // Render children if connected
+  // Redirect to registration if connected but no company
+  if (!hasCompany) {
+    console.log('🛡️ ProtectedRoute: Redirecting to /register (no company)')
+    return <Navigate to="/register" replace />
+  }
+
+  // Render children if connected and has company
   return <>{children}</>
 }
 
 export default ProtectedRoute
-
-

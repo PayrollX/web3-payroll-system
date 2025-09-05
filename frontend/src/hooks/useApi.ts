@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
+import { useAccount } from 'wagmi'
 import { 
   apiService, 
   EmployeeData, 
@@ -64,17 +65,31 @@ export const useEmployees = (params?: {
   page?: number
   limit?: number
 }): UseEmployeesReturn => {
+  const { address } = useAccount()
   const [employees, setEmployees] = useState<EmployeeData[]>([])
   const [totalEmployees, setTotalEmployees] = useState(0)
   const [activeEmployees, setActiveEmployees] = useState(0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Set wallet address in API service when address changes
+  useEffect(() => {
+    if (address) {
+      apiService.setWalletAddress(address)
+    }
+  }, [address])
+
   const loadEmployees = useCallback(async () => {
+    if (!address) {
+      console.log('🔐 useEmployees: No wallet address available, skipping load')
+      return
+    }
+    
     setLoading(true)
     setError(null)
     
     try {
+      console.log('🔐 useEmployees: Loading employees for wallet:', address)
       const response = await apiService.getEmployees(params)
       
       if (response.success && response.data) {
@@ -198,8 +213,10 @@ export const useEmployees = (params?: {
 
   // Load employees on mount and when params change
   useEffect(() => {
-    loadEmployees()
-  }, [loadEmployees])
+    if (address) {
+      loadEmployees()
+    }
+  }, [loadEmployees, address])
 
   return {
     employees,
@@ -226,10 +243,18 @@ export const usePayments = (params?: {
   startDate?: string
   endDate?: string
 }): UsePaymentsReturn => {
+  const { address } = useAccount()
   const [payments, setPayments] = useState<PaymentRecord[]>([])
   const [pendingPayments, setPendingPayments] = useState<PaymentRecord[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Set wallet address in API service when address changes
+  useEffect(() => {
+    if (address) {
+      apiService.setWalletAddress(address)
+    }
+  }, [address])
 
   const loadPayments = useCallback(async () => {
     setLoading(true)
@@ -320,9 +345,17 @@ export const useBonuses = (params?: {
   page?: number
   limit?: number
 }): UseBonusesReturn => {
+  const { address } = useAccount()
   const [bonuses, setBonuses] = useState<BonusRecord[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Set wallet address in API service when address changes
+  useEffect(() => {
+    if (address) {
+      apiService.setWalletAddress(address)
+    }
+  }, [address])
 
   const loadBonuses = useCallback(async () => {
     setLoading(true)
@@ -418,15 +451,29 @@ export const useBonuses = (params?: {
  * Hook for analytics data
  */
 export const useAnalytics = (): UseAnalyticsReturn => {
+  const { address } = useAccount()
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Set wallet address in API service when address changes
+  useEffect(() => {
+    if (address) {
+      apiService.setWalletAddress(address)
+    }
+  }, [address])
+
   const loadAnalytics = useCallback(async () => {
+    if (!address) {
+      console.log('🔐 useAnalytics: No wallet address available, skipping load')
+      return
+    }
+    
     setLoading(true)
     setError(null)
     
     try {
+      console.log('🔐 useAnalytics: Loading analytics for wallet:', address)
       const response = await apiService.getPayrollSummary()
       
       if (response.success && response.data) {
@@ -447,8 +494,10 @@ export const useAnalytics = (): UseAnalyticsReturn => {
 
   // Load analytics on mount
   useEffect(() => {
-    loadAnalytics()
-  }, [loadAnalytics])
+    if (address) {
+      loadAnalytics()
+    }
+  }, [loadAnalytics, address])
 
   return {
     analytics,

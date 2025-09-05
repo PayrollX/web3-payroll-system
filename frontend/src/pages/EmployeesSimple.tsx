@@ -44,6 +44,7 @@ import {
   ContentCopy as CopyIcon
 } from '@mui/icons-material'
 import { useAccount } from 'wagmi'
+import { apiService } from '../services/apiService'
 
 /**
  * Simple Employee Management for Employers
@@ -83,7 +84,8 @@ const paymentFrequencies = [
   { value: 'WEEKLY', label: 'Weekly' },
   { value: 'BIWEEKLY', label: 'Bi-weekly' },
   { value: 'MONTHLY', label: 'Monthly' },
-  { value: 'QUARTERLY', label: 'Quarterly' }
+  { value: 'QUARTERLY', label: 'Quarterly' },
+  { value: 'ONE_TIME', label: 'One Time' }
 ]
 
 const supportedTokens = [
@@ -128,18 +130,33 @@ const EmployeesSimple: React.FC = () => {
   const loadEmployees = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/employees', {
-        headers: {
-          'x-wallet-address': address!
-        }
-      })
+      
+      // Set wallet address in apiService
+      if (address) {
+        apiService.setWalletAddress(address)
+      }
+      
+      const response = await apiService.getEmployees()
 
-      if (response.ok) {
-        const data = await response.json()
-        setEmployees(data.employees || [])
+      if (response.success && response.data) {
+        // Transform EmployeeData from API to local Employee format
+        const transformedEmployees = (response.data.employees || []).map((emp: any) => ({
+          id: emp._id,
+          name: emp.personalInfo?.name || 'Unknown',
+          email: emp.personalInfo?.email || '',
+          position: emp.employmentDetails?.position || 'Employee',
+          department: emp.employmentDetails?.department || 'General',
+          walletAddress: emp.payrollSettings?.walletAddress || '',
+          salary: emp.payrollSettings?.salaryAmount || '0',
+          paymentFrequency: emp.payrollSettings?.paymentFrequency || 'MONTHLY',
+          preferredToken: emp.payrollSettings?.preferredToken || 'ETH',
+          ensDomain: emp.ensDetails?.fullDomain || '',
+          isActive: emp.employmentDetails?.isActive || true,
+          createdAt: emp.employmentDetails?.startDate || new Date().toISOString()
+        }))
+        setEmployees(transformedEmployees)
       } else {
-        const errorData = await response.json()
-        setError(errorData.message || 'Failed to load employees')
+        setError(response.error || 'Failed to load employees')
       }
     } catch (error) {
       setError('Network error while loading employees')
@@ -174,32 +191,39 @@ const EmployeesSimple: React.FC = () => {
     setError(null)
 
     try {
-      const response = await fetch('/api/employees', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-wallet-address': address
-        },
-        body: JSON.stringify(formData)
-      })
+      // Set wallet address in apiService
+      if (address) {
+        apiService.setWalletAddress(address)
+      }
+      
+      // Map form data to simple API format (backend expects flat structure)
+      const employeeData = {
+        name: formData.name,
+        walletAddress: formData.walletAddress,
+        salaryAmount: formData.salaryAmount,
+        paymentToken: formData.preferredToken
+      }
+      
+      const response = await apiService.createEmployee(employeeData)
 
-      const data = await response.json()
-
-      if (response.ok && data.success) {
-        // Add new employee to list
+      if (response.success && response.data) {
+        // Backend returns { success: true, message: string, employee: {...} }
+        const employeeFromAPI = (response.data as any).employee
+        
+        // Create local Employee object
         const newEmployee: Employee = {
-          id: data.employee.id,
-          name: data.employee.name,
-          email: data.employee.email,
-          position: data.employee.position,
-          department: data.employee.department,
-          walletAddress: data.employee.walletAddress,
-          salary: data.employee.salary,
-          paymentFrequency: data.employee.paymentFrequency,
-          preferredToken: formData.preferredToken,
-          ensDomain: data.employee.ensDomain,
-          isActive: data.employee.isActive,
-          createdAt: data.employee.createdAt
+          id: employeeFromAPI._id,
+          name: employeeFromAPI.name,
+          email: formData.email,
+          position: formData.position,
+          department: formData.department,
+          walletAddress: employeeFromAPI.walletAddress,
+          salary: employeeFromAPI.salaryAmount,
+          paymentFrequency: formData.paymentFrequency,
+          preferredToken: employeeFromAPI.paymentToken,
+          ensDomain: employeeFromAPI.ensDomain,
+          isActive: true,
+          createdAt: new Date().toISOString()
         }
 
         setEmployees(prev => [newEmployee, ...prev])
@@ -207,9 +231,9 @@ const EmployeesSimple: React.FC = () => {
         resetForm()
         
         // Show success message
-        alert(`Employee ${data.employee.name} added successfully!\nENS Domain: ${data.employee.ensDomain}`)
+        alert(`Employee ${employeeFromAPI.name} added successfully!\nENS Domain: ${employeeFromAPI.ensDomain}`)
       } else {
-        setError(data.message || data.error || 'Failed to add employee')
+        setError(response.error || response.message || 'Failed to add employee')
       }
     } catch (error) {
       setError('Network error while adding employee')

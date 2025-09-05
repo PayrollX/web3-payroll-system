@@ -6,12 +6,54 @@
 const express = require('express')
 const router = express.Router()
 const Employee = require('../models/Employee')
-const authMiddleware = require('../middleware/auth')
-const { validatePayrollData } = require('../middleware/validation')
+const Company = require('../models/Company')
+const { ethers } = require('ethers')
+
+// Middleware to extract wallet address and get company
+const extractCompanyFromWallet = async (req, res, next) => {
+  try {
+    const walletAddress = req.headers['x-wallet-address']
+    
+    if (!walletAddress) {
+      return res.status(401).json({
+        error: 'Wallet address required',
+        message: 'Please provide wallet address in x-wallet-address header'
+      })
+    }
+    
+    if (!ethers.utils.isAddress(walletAddress)) {
+      return res.status(400).json({
+        error: 'Invalid wallet address'
+      })
+    }
+
+    const company = await Company.findByWallet(walletAddress.toLowerCase())
+    
+    if (!company) {
+      return res.status(404).json({
+        error: 'Company not found',
+        message: 'Please register your company first'
+      })
+    }
+
+    req.company = company
+    req.walletAddress = walletAddress.toLowerCase()
+    next()
+  } catch (error) {
+    res.status(500).json({ error: 'Authentication failed' })
+  }
+}
 
 // Get payment history
-router.get('/history', authMiddleware, async (req, res) => {
+router.get('/history', extractCompanyFromWallet, async (req, res) => {
   try {
+    // Disable caching to prevent 304 responses
+    res.set({
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    })
+    
     const { employeeId, page = 1, limit = 10, startDate, endDate } = req.query
     
     let query = {}
@@ -41,31 +83,30 @@ router.get('/history', authMiddleware, async (req, res) => {
 })
 
 // Get pending payments
-router.get('/pending', authMiddleware, async (req, res) => {
+router.get('/pending', extractCompanyFromWallet, async (req, res) => {
   try {
-    const employees = await Employee.find({ 'employmentDetails.isActive': true })
-    
-    // Filter employees who are due for payment
-    const pendingPayments = employees.filter(employee => {
-      // This is a simplified check - in reality you'd check against blockchain data
-      const lastPayment = employee.payrollSettings.lastPaymentTimestamp || 0
-      const now = Date.now()
-      const daysSinceLastPayment = (now - lastPayment) / (1000 * 60 * 60 * 24)
-      
-      // Check based on payment frequency
-      switch (employee.payrollSettings.paymentFrequency) {
-        case 'WEEKLY':
-          return daysSinceLastPayment >= 7
-        case 'BIWEEKLY':
-          return daysSinceLastPayment >= 14
-        case 'MONTHLY':
-          return daysSinceLastPayment >= 30
-        case 'QUARTERLY':
-          return daysSinceLastPayment >= 90
-        default:
-          return daysSinceLastPayment >= 30
-      }
+    // Disable caching to prevent 304 responses
+    res.set({
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
     })
+    
+    const employees = await Employee.find({ companyId: req.company._id })
+    
+    // For minimal model, assume all employees have pending payments
+    // Transform to match expected format
+    const pendingPayments = employees.map(employee => ({
+      _id: employee._id,
+      name: employee.name,
+      walletAddress: employee.walletAddress,
+      salaryAmount: employee.salaryAmount,
+      paymentToken: employee.paymentToken,
+      ensName: employee.ensName,
+      ensDomain: `${employee.ensName}.${req.company.ensDomain}`,
+      dueDate: new Date().toISOString(),
+      isPending: true
+    }))
 
     res.json(pendingPayments)
   } catch (error) {
@@ -74,7 +115,7 @@ router.get('/pending', authMiddleware, async (req, res) => {
 })
 
 // Process payroll for multiple employees
-router.post('/process', authMiddleware, validatePayrollData, async (req, res) => {
+router.post('/process', extractCompanyFromWallet, async (req, res) => {
   try {
     const { employeeIds } = req.body
     
@@ -100,7 +141,7 @@ router.post('/process', authMiddleware, validatePayrollData, async (req, res) =>
 })
 
 // Process individual payment
-router.post('/process/:employeeId', authMiddleware, async (req, res) => {
+router.post('/process/:employeeId', extractCompanyFromWallet, async (req, res) => {
   try {
     const { employeeId } = req.params
     
@@ -131,27 +172,16 @@ router.post('/process/:employeeId', authMiddleware, async (req, res) => {
 })
 
 // Get payroll summary
-router.get('/summary', authMiddleware, async (req, res) => {
+router.get('/summary', extractCompanyFromWallet, async (req, res) => {
   try {
-    const totalEmployees = await Employee.countDocuments({ 'employmentDetails.isActive': true })
+    const totalEmployees = await Employee.countDocuments({ companyId: req.company._id })
     
     // Calculate total monthly payroll
-    const employees = await Employee.find({ 'employmentDetails.isActive': true })
+    const employees = await Employee.find({ companyId: req.company._id })
     const totalMonthlyPayroll = employees.reduce((sum, emp) => {
-      const salary = parseFloat(emp.payrollSettings.salaryAmount) || 0
-      // Convert based on frequency to monthly equivalent
-      switch (emp.payrollSettings.paymentFrequency) {
-        case 'WEEKLY':
-          return sum + (salary * 4.33) // ~4.33 weeks per month
-        case 'BIWEEKLY':
-          return sum + (salary * 2.17) // ~2.17 biweeks per month
-        case 'MONTHLY':
-          return sum + salary
-        case 'QUARTERLY':
-          return sum + (salary / 3) // 1/3 of quarterly per month
-        default:
-          return sum + salary
-      }
+      const salary = parseFloat(emp.salaryAmount) || 0
+      // For minimal model, assume monthly payments
+      return sum + salary
     }, 0)
     
     res.json({

@@ -10,7 +10,7 @@ async function main() {
     
     console.log("🚀 Deploying PayrollManager contract...");
     console.log("Deploying contracts with account:", deployer.address);
-    console.log("Account balance:", ethers.formatEther(await deployer.provider.getBalance(deployer.address)));
+    console.log("Account balance:", ethers.formatEther(await ethers.provider.getBalance(deployer.address)));
 
     // ENS Registry on Ethereum Mainnet
     const ENS_REGISTRY = "0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e";

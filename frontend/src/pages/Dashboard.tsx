@@ -38,6 +38,7 @@ import { addNotification } from '../store/slices/uiSlice'
 import { useBlockchain } from '../hooks/useBlockchain'
 import { useAnalytics } from '../hooks/useApi'
 import { useContractBalance } from '../hooks/useBlockchain'
+import { useDashboardMetrics } from '../services/dashboardService'
 import { TOKEN_ADDRESSES, NETWORKS, SUCCESS_MESSAGES, ERROR_MESSAGES } from '../contracts/constants'
 
 /**
@@ -49,25 +50,30 @@ const Dashboard: React.FC = () => {
   const { address, isConnected } = useAccount()
   const dispatch = useAppDispatch()
   
-  // Blockchain hooks
+  // Enhanced dashboard metrics hook
+  const {
+    totalEmployees,
+    activeEmployees,
+    contractBalance,
+    monthlyPayroll,
+    pendingPayments,
+    loading: dashboardLoading,
+    error: dashboardError,
+    lastUpdated,
+    refresh: refreshDashboard
+  } = useDashboardMetrics()
+  
+  // Blockchain hooks (for contract info and ownership)
   const {
     isOwner,
     currentNetwork,
     contractInfo,
-    employees,
-    activeEmployees,
-    loadingEmployees,
     isPaused,
     refreshData,
   } = useBlockchain()
   
-  // API hooks
+  // API hooks (for additional analytics)
   const { analytics, loading: analyticsLoading, refreshAnalytics } = useAnalytics()
-  
-  // Contract balance hooks
-  const { balance: ethBalance, loading: balanceLoading } = useContractBalance(
-    TOKEN_ADDRESSES[currentNetwork as keyof typeof TOKEN_ADDRESSES]?.ETH || '0x0000000000000000000000000000000000000000'
-  )
   
   // Local state
   const [refreshing, setRefreshing] = useState(false)
@@ -78,12 +84,12 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     if (isPaused) {
       setSystemStatus('error')
-    } else if (parseFloat(ethBalance) < 0.1) {
+    } else if (parseFloat(contractBalance) < 0.1) {
       setSystemStatus('warning')
     } else {
       setSystemStatus('healthy')
     }
-  }, [isPaused, ethBalance])
+  }, [isPaused, contractBalance])
 
   /**
    * Handle refresh all data
@@ -92,6 +98,7 @@ const Dashboard: React.FC = () => {
     setRefreshing(true)
     try {
       await Promise.all([
+        refreshDashboard(), // Use new dashboard refresh
         refreshData(),
         refreshAnalytics(),
       ])
@@ -131,16 +138,10 @@ const Dashboard: React.FC = () => {
   }
 
   /**
-   * Get pending payments count
+   * Get pending payments count (now using API data)
    */
   const getPendingPaymentsCount = () => {
-    if (!employees.length) return 0
-    const now = Date.now()
-    return employees.filter(emp => {
-      const lastPayment = emp.lastPaymentTimestamp * 1000
-      const frequencyDays = emp.frequency === 0 ? 7 : emp.frequency === 1 ? 14 : emp.frequency === 2 ? 30 : 90
-      return (now - lastPayment) > (frequencyDays * 24 * 60 * 60 * 1000)
-    }).length
+    return pendingPayments
   }
 
   // Auto-refresh data every 30 seconds
@@ -148,12 +149,13 @@ const Dashboard: React.FC = () => {
     if (!isConnected) return
 
     const interval = setInterval(() => {
+      refreshDashboard() // Use new dashboard refresh
       refreshData()
       refreshAnalytics()
     }, 30000)
 
     return () => clearInterval(interval)
-  }, [isConnected, refreshData, refreshAnalytics])
+  }, [isConnected, refreshDashboard, refreshData, refreshAnalytics])
 
   if (!isConnected) {
     return (
@@ -171,7 +173,7 @@ const Dashboard: React.FC = () => {
   return (
     <Box sx={{ p: 3 }}>
       {/* Loading Progress Bar */}
-      {(refreshing || loadingEmployees || analyticsLoading || balanceLoading) && (
+      {(refreshing || dashboardLoading || analyticsLoading) && (
         <LinearProgress sx={{ mb: 2 }} />
       )}
       
@@ -206,7 +208,7 @@ const Dashboard: React.FC = () => {
             Connected: {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Not connected'}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Last updated: {lastRefresh.toLocaleTimeString()}
+            Last updated: {lastUpdated.toLocaleTimeString()}
           </Typography>
           <Tooltip title="Refresh Data">
             <IconButton onClick={handleRefresh} disabled={refreshing}>
@@ -217,6 +219,12 @@ const Dashboard: React.FC = () => {
       </Box>
 
       {/* System Status Alerts */}
+      {dashboardError && (
+        <Alert severity="error" icon={<ErrorIcon />} sx={{ mb: 3 }}>
+          Dashboard Error: {dashboardError}
+        </Alert>
+      )}
+
       {isPaused && (
         <Alert severity="warning" icon={<WarningIcon />} sx={{ mb: 3 }}>
           Contract is currently paused. Some operations may be restricted.
@@ -258,15 +266,15 @@ const Dashboard: React.FC = () => {
                 <PeopleIcon color="primary" sx={{ mr: 1 }} />
                 <Typography variant="h6">Total Employees</Typography>
               </Box>
-              {loadingEmployees ? (
+              {dashboardLoading ? (
                 <CircularProgress size={24} />
               ) : (
                 <>
                   <Typography variant="h4" color="primary">
-                    {employees.length}
+                    {totalEmployees}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    {activeEmployees.length} active
+                    {activeEmployees} active
                   </Typography>
                 </>
               )}
@@ -281,12 +289,12 @@ const Dashboard: React.FC = () => {
                 <PaymentIcon color="secondary" sx={{ mr: 1 }} />
                 <Typography variant="h6">Contract Balance</Typography>
               </Box>
-              {balanceLoading ? (
+              {dashboardLoading ? (
                 <CircularProgress size={24} />
               ) : (
                 <>
                   <Typography variant="h4" color="secondary">
-                    {formatCurrency(ethBalance)} ETH
+                    {formatCurrency(contractBalance)} ETH
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Available for payroll
@@ -304,12 +312,12 @@ const Dashboard: React.FC = () => {
                 <TrendingUpIcon color="success" sx={{ mr: 1 }} />
                 <Typography variant="h6">Monthly Payroll</Typography>
               </Box>
-              {analyticsLoading ? (
+              {dashboardLoading ? (
                 <CircularProgress size={24} />
               ) : (
                 <>
                   <Typography variant="h4" color="success.main">
-                    {analytics ? formatCurrency(analytics.monthlyPayrollAmount) : '0.0000'} ETH
+                    {formatCurrency(monthlyPayroll)} ETH
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     This month
@@ -403,36 +411,18 @@ const Dashboard: React.FC = () => {
               <Typography variant="h6" gutterBottom>
                 Recent Employees
               </Typography>
-              {loadingEmployees ? (
+              {dashboardLoading ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
                   <CircularProgress />
                 </Box>
-              ) : employees.length === 0 ? (
+              ) : totalEmployees === 0 ? (
                 <Alert severity="info">
                   No employees found. Add your first employee to get started.
                 </Alert>
               ) : (
-                <List>
-                  {employees.slice(0, 5).map((employee, index) => (
-                    <React.Fragment key={employee.walletAddress}>
-                      <ListItem>
-                        <ListItemIcon>
-                          <AccountBalanceIcon color="primary" />
-                        </ListItemIcon>
-                        <ListItemText
-                          primary={`${employee.position} - ${employee.department}`}
-                          secondary={`${employee.ensSubdomain}.company.eth • ${formatCurrency(employee.salaryAmount)} ETH`}
-                        />
-                        <Chip
-                          label={employee.isActive ? 'Active' : 'Inactive'}
-                          color={employee.isActive ? 'success' : 'default'}
-                          size="small"
-                        />
-                      </ListItem>
-                      {index < employees.length - 1 && <Divider />}
-                    </React.Fragment>
-                  ))}
-                </List>
+                <Alert severity="info">
+                  Employee data is being loaded from the API. Total employees: {totalEmployees}, Active: {activeEmployees}
+                </Alert>
               )}
             </CardContent>
           </Card>
@@ -449,7 +439,7 @@ const Dashboard: React.FC = () => {
                   variant="contained"
                   color="primary"
                   fullWidth
-                  disabled={!isOwner || isPaused || employees.length === 0}
+                  disabled={!isOwner || isPaused || totalEmployees === 0}
                 >
                   Process Payroll
                 </Button>

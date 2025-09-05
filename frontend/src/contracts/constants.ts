@@ -97,6 +97,7 @@ export const PAYMENT_FREQUENCIES = {
   BIWEEKLY: 1,
   MONTHLY: 2,
   QUARTERLY: 3,
+  ONE_TIME: 4,
 } as const
 
 // Payment frequency labels
@@ -105,6 +106,7 @@ export const PAYMENT_FREQUENCY_LABELS = {
   [PAYMENT_FREQUENCIES.BIWEEKLY]: 'Bi-weekly',
   [PAYMENT_FREQUENCIES.MONTHLY]: 'Monthly',
   [PAYMENT_FREQUENCIES.QUARTERLY]: 'Quarterly',
+  [PAYMENT_FREQUENCIES.ONE_TIME]: 'One Time',
 } as const
 
 // Token information
@@ -142,7 +144,7 @@ export const CONTRACT_ABIS = {
 
 // API endpoints
 export const API_ENDPOINTS = {
-  BASE_URL: process.env.REACT_APP_API_URL || 'http://localhost:3001/api',
+  BASE_URL: (process.env.REACT_APP_API_URL || 'http://localhost:3001') + '/api',
   EMPLOYEES: '/employees',
   PAYROLL: '/payroll',
   BONUSES: '/bonuses',

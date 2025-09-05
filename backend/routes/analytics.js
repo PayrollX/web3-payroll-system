@@ -6,64 +6,81 @@
 const express = require('express')
 const router = express.Router()
 const Employee = require('../models/Employee')
-const authMiddleware = require('../middleware/auth')
+const Company = require('../models/Company')
+const { ethers } = require('ethers')
+
+// Middleware to extract wallet address and get company
+const extractCompanyFromWallet = async (req, res, next) => {
+  try {
+    const walletAddress = req.headers['x-wallet-address']
+    
+    if (!walletAddress) {
+      return res.status(401).json({
+        error: 'Wallet address required',
+        message: 'Please provide wallet address in x-wallet-address header'
+      })
+    }
+    
+    if (!ethers.utils.isAddress(walletAddress)) {
+      return res.status(400).json({
+        error: 'Invalid wallet address'
+      })
+    }
+
+    const company = await Company.findByWallet(walletAddress.toLowerCase())
+    
+    if (!company) {
+      return res.status(404).json({
+        error: 'Company not found',
+        message: 'Please register your company first'
+      })
+    }
+
+    req.company = company
+    req.walletAddress = walletAddress.toLowerCase()
+    next()
+  } catch (error) {
+    res.status(500).json({ error: 'Authentication failed' })
+  }
+}
 
 // Get payroll summary analytics
-router.get('/payroll-summary', authMiddleware, async (req, res) => {
+router.get('/payroll-summary', extractCompanyFromWallet, async (req, res) => {
   try {
-    // Get basic employee counts
-    const totalEmployees = await Employee.countDocuments()
-    const activeEmployees = await Employee.countDocuments({ 'employmentDetails.isActive': true })
+    // Disable caching to prevent 304 responses
+    res.set({
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    })
     
-    // Get all active employees for calculations
-    const employees = await Employee.find({ 'employmentDetails.isActive': true })
+    // Get basic employee counts for this company
+    const totalEmployees = await Employee.countDocuments({ companyId: req.company._id })
+    const activeEmployees = totalEmployees // All employees are active in minimal model
+    
+    // Get all employees for this company
+    const employees = await Employee.find({ companyId: req.company._id })
     
     // Calculate total and monthly payroll amounts
     let totalPayrollAmount = 0
     let monthlyPayrollAmount = 0
     
     employees.forEach(emp => {
-      const salary = parseFloat(emp.payrollSettings.salaryAmount) || 0
+      const salary = parseFloat(emp.salaryAmount) || 0
       totalPayrollAmount += salary
       
-      // Convert to monthly equivalent
-      switch (emp.payrollSettings.paymentFrequency) {
-        case 'WEEKLY':
-          monthlyPayrollAmount += salary * 4.33
-          break
-        case 'BIWEEKLY':
-          monthlyPayrollAmount += salary * 2.17
-          break
-        case 'MONTHLY':
-          monthlyPayrollAmount += salary
-          break
-        case 'QUARTERLY':
-          monthlyPayrollAmount += salary / 3
-          break
-        default:
-          monthlyPayrollAmount += salary
-      }
+      // For minimal model, assume monthly payments for simplicity
+      monthlyPayrollAmount += salary
     })
     
-    // Department breakdown
-    const departmentBreakdown = await Employee.aggregate([
-      { $match: { 'employmentDetails.isActive': true } },
+    // Department breakdown (simplified for minimal model)
+    const departmentBreakdown = [
       {
-        $group: {
-          _id: '$employmentDetails.department',
-          employeeCount: { $sum: 1 },
-          totalSalary: { $sum: { $toDouble: '$payrollSettings.salaryAmount' } }
-        }
-      },
-      {
-        $project: {
-          department: '$_id',
-          employeeCount: 1,
-          totalSalary: { $toString: '$totalSalary' },
-          _id: 0
-        }
+        department: 'General',
+        employeeCount: totalEmployees,
+        totalSalary: totalPayrollAmount.toString()
       }
-    ])
+    ]
     
     // Mock payment trends (last 6 months)
     const paymentTrends = []
@@ -118,41 +135,28 @@ router.get('/payroll-summary', authMiddleware, async (req, res) => {
 })
 
 // Get employee cost analysis
-router.get('/employee-costs', authMiddleware, async (req, res) => {
+router.get('/employee-costs', extractCompanyFromWallet, async (req, res) => {
   try {
-    const employees = await Employee.find({ 'employmentDetails.isActive': true })
+    const employees = await Employee.find({ companyId: req.company._id })
     
     const costAnalysis = employees.map(emp => {
-      const monthlySalary = parseFloat(emp.payrollSettings.salaryAmount) || 0
+      const monthlySalary = parseFloat(emp.salaryAmount) || 0
       let annualCost = 0
       
-      // Calculate annual cost based on frequency
-      switch (emp.payrollSettings.paymentFrequency) {
-        case 'WEEKLY':
-          annualCost = monthlySalary * 52
-          break
-        case 'BIWEEKLY':
-          annualCost = monthlySalary * 26
-          break
-        case 'MONTHLY':
-          annualCost = monthlySalary * 12
-          break
-        case 'QUARTERLY':
-          annualCost = monthlySalary * 4
-          break
-        default:
-          annualCost = monthlySalary * 12
-      }
+      // For minimal model, assume monthly payments
+      annualCost = monthlySalary * 12
       
       return {
         employeeId: emp._id,
-        name: emp.personalInfo.name,
-        position: emp.employmentDetails.position,
-        department: emp.employmentDetails.department,
+        name: emp.name,
+        position: 'Employee',
+        department: 'General',
         monthlyCost: monthlySalary.toFixed(4),
         annualCost: annualCost.toFixed(4),
-        paymentFrequency: emp.payrollSettings.paymentFrequency,
-        preferredToken: emp.payrollSettings.preferredToken
+        paymentFrequency: 'MONTHLY',
+        preferredToken: emp.paymentToken,
+        ensName: emp.ensName,
+        ensDomain: `${emp.ensName}.${req.company.ensDomain}`
       }
     })
     
@@ -178,7 +182,7 @@ router.get('/employee-costs', authMiddleware, async (req, res) => {
 })
 
 // Get payment trends
-router.get('/payment-trends', authMiddleware, async (req, res) => {
+router.get('/payment-trends', extractCompanyFromWallet, async (req, res) => {
   try {
     const { startDate, endDate, period = 'monthly' } = req.query
     
@@ -234,7 +238,7 @@ router.get('/payment-trends', authMiddleware, async (req, res) => {
 })
 
 // Get department analytics
-router.get('/departments', authMiddleware, async (req, res) => {
+router.get('/departments', extractCompanyFromWallet, async (req, res) => {
   try {
     const departmentData = await Employee.aggregate([
       { $match: { 'employmentDetails.isActive': true } },

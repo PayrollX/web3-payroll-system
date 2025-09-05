@@ -174,7 +174,7 @@ const Payroll: React.FC = () => {
     for (const address of employeeAddresses) {
       try {
         const amount = await calculatePaymentAmount(address)
-        const employee = blockchainEmployees.find(emp => emp.walletAddress === address)
+        const employee = (blockchainEmployees || []).find(emp => emp.walletAddress === address)
         
         if (employee) {
           const tokenAddress = employee.preferredToken
@@ -470,7 +470,7 @@ const Payroll: React.FC = () => {
    * Get pending employees
    */
   const getPendingEmployees = () => {
-    if (!blockchainEmployees.length) return []
+    if (!blockchainEmployees || !blockchainEmployees.length) return []
     
     const now = Date.now()
     return blockchainEmployees.filter(emp => {
@@ -527,7 +527,7 @@ const Payroll: React.FC = () => {
     )
   }
 
-  const pendingEmployees = getPendingEmployees()
+  const pendingEmployees = getPendingEmployees() || []
   const allSelected = selectedEmployees.length === pendingEmployees.length && pendingEmployees.length > 0
 
   return (
@@ -582,7 +582,7 @@ const Payroll: React.FC = () => {
                 <PersonIcon color="primary" sx={{ mr: 2 }} />
                 <Box>
                   <Typography variant="h4" color="primary">
-                    {blockchainEmployees.length}
+                    {(blockchainEmployees || []).length}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Total Employees
@@ -616,7 +616,7 @@ const Payroll: React.FC = () => {
                 <AttachMoneyIcon color="success" sx={{ mr: 2 }} />
                 <Box>
                   <Typography variant="h4" color="success.main">
-                    {payments.length}
+                    {payments?.length || 0}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Total Payments
@@ -761,13 +761,13 @@ const Payroll: React.FC = () => {
             <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
               <CircularProgress />
             </Box>
-          ) : payments.length === 0 ? (
+          ) : !payments || payments.length === 0 ? (
             <Alert severity="info">
               No payments found.
             </Alert>
           ) : (
             <List>
-              {payments.slice(0, 5).map((payment, index) => (
+              {(payments || []).slice(0, 5).map((payment, index) => (
                 <React.Fragment key={payment._id}>
                   <ListItem>
                     <ListItemIcon>
@@ -783,7 +783,7 @@ const Payroll: React.FC = () => {
                       size="small"
                     />
                   </ListItem>
-                  {index < payments.length - 1 && <Divider />}
+                  {index < (payments || []).length - 1 && <Divider />}
                 </React.Fragment>
               ))}
             </List>

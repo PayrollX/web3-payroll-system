@@ -39,6 +39,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { useAccount } from 'wagmi'
 import { useAppSelector } from '../../store/store'
+import { useAuth } from '../../context/AuthContext'
 // import { motion, AnimatePresence } from 'framer-motion'
 
 /**
@@ -66,6 +67,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const navigate = useNavigate()
   const { address } = useAccount()
   const { notifications } = useAppSelector((state) => state.ui)
+  const { company } = useAuth()
   
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [hoveredItem, setHoveredItem] = useState<string | null>(null)
@@ -244,13 +246,13 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                     background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
                   }}
                 >
-                  {address?.slice(2, 4).toUpperCase()}
+                  {company?.name?.slice(0, 2).toUpperCase() || address?.slice(2, 4).toUpperCase()}
                 </Avatar>
                 <Typography variant="subtitle1" fontWeight="bold">
-                  Admin User
+                  {company?.name || 'Admin User'}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" fontFamily="monospace">
-                  {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Not connected'}
+                  {company?.ensDomain || (address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Not connected')}
                 </Typography>
               </Box>
 

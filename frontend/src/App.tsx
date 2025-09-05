@@ -16,7 +16,9 @@ import { store } from './store/store'
 
 // Components
 import ProtectedRoute from './components/Auth/ProtectedRoute'
+import RegistrationGuard from './components/Auth/RegistrationGuard'
 import DashboardLayout from './components/Layout/DashboardLayout'
+import { AuthProvider } from './context/AuthContext'
 
 // Pages
 import Landing from './pages/Landing'
@@ -177,13 +179,21 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider chains={[mainnet, sepolia, goerli]}>
           <Provider store={store}>
-            <ThemeProvider theme={theme}>
-              <CssBaseline />
-              <Router>
-                <Routes>
+            <AuthProvider>
+              <ThemeProvider theme={theme}>
+                <CssBaseline />
+                <Router>
+                  <Routes>
                   {/* Public Pages */}
                   <Route path="/" element={<Landing />} />
-                  <Route path="/register" element={<CompanyRegistration />} />
+                  <Route 
+                    path="/register" 
+                    element={
+                      <RegistrationGuard>
+                        <CompanyRegistration />
+                      </RegistrationGuard>
+                    } 
+                  />
                   
                   {/* Protected Dashboard Routes */}
                   <Route
@@ -259,6 +269,7 @@ function App() {
                 </Routes>
               </Router>
             </ThemeProvider>
+            </AuthProvider>
           </Provider>
         </RainbowKitProvider>
       </QueryClientProvider>
