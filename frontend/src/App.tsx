@@ -20,8 +20,9 @@ import DashboardLayout from './components/Layout/DashboardLayout'
 
 // Pages
 import Landing from './pages/Landing'
+import CompanyRegistration from './pages/CompanyRegistration'
 import Dashboard from './pages/Dashboard'
-import Employees from './pages/Employees'
+import EmployeesSimple from './pages/EmployeesSimple'
 import Payroll from './pages/Payroll'
 import Bonuses from './pages/Bonuses'
 import ENSManagement from './pages/ENSManagement'
@@ -180,8 +181,9 @@ function App() {
               <CssBaseline />
               <Router>
                 <Routes>
-                  {/* Public Landing Page */}
+                  {/* Public Pages */}
                   <Route path="/" element={<Landing />} />
+                  <Route path="/register" element={<CompanyRegistration />} />
                   
                   {/* Protected Dashboard Routes */}
                   <Route
@@ -194,12 +196,12 @@ function App() {
                       </ProtectedRoute>
                     }
                   />
-                  <Route
+                                      <Route
                     path="/employees"
                     element={
                       <ProtectedRoute>
                         <DashboardLayout>
-                          <Employees />
+                          <EmployeesSimple />
                         </DashboardLayout>
                       </ProtectedRoute>
                     }

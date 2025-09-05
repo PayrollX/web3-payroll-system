@@ -286,16 +286,21 @@ const Landing: React.FC = () => {
 
             {/* Subtitle */}
             <p className="text-xl md:text-2xl text-gray-600 mb-12 max-w-4xl mx-auto leading-relaxed">
-              Transform your business with Web3-powered payroll management. 
-              <span className="font-semibold text-gray-800"> Secure, transparent, and lightning-fast</span> payments 
-              on the Ethereum blockchain.
+              <span className="font-semibold text-gray-800">For Employers:</span> Manage your company payroll with crypto. 
+              Add employees, they get <span className="font-semibold text-gray-800">auto-generated ENS domains</span>, 
+              and receive payments directly to their wallets.
             </p>
 
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6 mb-16">
-              <div className="transform hover:scale-105 transition-all duration-300">
-                <ConnectButton />
-              </div>
+              <Link 
+                to="/register"
+                className="group bg-gradient-to-r from-blue-600 to-blue-700 text-white px-10 py-4 rounded-xl font-semibold text-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center space-x-2 no-underline"
+              >
+                <WalletIcon className="w-5 h-5" />
+                <span>Register Your Company</span>
+                <ArrowForwardIcon className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </Link>
               <button className="group bg-white/60 backdrop-blur-sm border border-white/20 text-gray-700 px-8 py-4 rounded-xl font-semibold text-lg hover:shadow-lg transform hover:scale-105 transition-all duration-300 flex items-center space-x-2">
                 <PlayCircle className="w-5 h-5" />
                 <span>Watch Demo</span>

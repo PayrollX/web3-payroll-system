@@ -32,6 +32,14 @@ export const NETWORKS = {
     ensRegistry: '0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e',
     publicResolver: '0x4976fb03C32e5B8cfe2b6Cb31c09Ba78EBaBa41',
   },
+  LOCALHOST: {
+    chainId: 31337,
+    name: 'Localhost Hardhat',
+    rpcUrl: 'http://127.0.0.1:8545',
+    blockExplorer: 'http://localhost:8545', // Local blockchain explorer (if any)
+    ensRegistry: '0x5FbDB2315678afecb367f032d93F642f64180aa3', // Mock for local testing
+    publicResolver: '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512', // Mock for local testing
+  },
 } as const
 
 // Token addresses by network
@@ -52,6 +60,14 @@ export const TOKEN_ADDRESSES = {
   [NETWORKS.GOERLI.chainId]: {
     ETH: '0x0000000000000000000000000000000000000000',
     // Test tokens on Goerli (if available)
+    USDC: '0x0000000000000000000000000000000000000000',
+    USDT: '0x0000000000000000000000000000000000000000',
+    DAI: '0x0000000000000000000000000000000000000000',
+  },
+  // Local Hardhat network tokens (using ETH for testing)
+  [31337]: {
+    ETH: '0x0000000000000000000000000000000000000000',
+    // For local testing, we'll primarily use ETH
     USDC: '0x0000000000000000000000000000000000000000',
     USDT: '0x0000000000000000000000000000000000000000',
     DAI: '0x0000000000000000000000000000000000000000',
