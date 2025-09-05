@@ -40,11 +40,23 @@ import {
   Twitter as TwitterIcon,
   LinkedIn as LinkedInIcon,
   Launch as LaunchIcon,
+  PlayCircle,
+  Rocket,
+  Shield,
+  // Replacing Zap with Bolt which exists in MUI icons
+  Bolt,
+  // Replacing Globe with Public which exists in MUI icons 
+  Public,
+  // Replacing BarChart3 with BarChart which exists in MUI icons
+  BarChart,
+  // Replacing Coins with AttachMoney which exists in MUI icons
+  AttachMoney,
+  Lock,
 } from '@mui/icons-material'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { useAccount } from 'wagmi'
-import { useNavigate } from 'react-router-dom'
-// import { motion } from 'framer-motion'
+import { Link, useNavigate } from 'react-router-dom'
+import background from '../assets/background.png'
 
 /**
  * Professional Landing Page for Web3 Payroll System
@@ -61,73 +73,34 @@ interface FeatureCardProps {
 interface StatCardProps {
   value: string
   label: string
+  sublabel?: string
   color: string
 }
 
 const FeatureCard: React.FC<FeatureCardProps> = ({ icon, title, description, color }) => {
-  const theme = useTheme()
-  
   return (
-    <Box sx={{ '&:hover': { transform: 'scale(1.02) translateY(-4px)' }, transition: 'transform 0.2s ease' }}>
-      <Card
-        sx={{
-          height: '100%',
-          background: `linear-gradient(135deg, ${alpha(color, 0.1)} 0%, ${alpha(color, 0.05)} 100%)`,
-          border: `1px solid ${alpha(color, 0.2)}`,
-          borderRadius: 3,
-          transition: 'all 0.3s ease',
-          '&:hover': {
-            boxShadow: `0 8px 32px ${alpha(color, 0.3)}`,
-            border: `1px solid ${alpha(color, 0.4)}`,
-          },
-        }}
-      >
-        <CardContent sx={{ p: 4 }}>
-          <Box
-            sx={{
-              width: 60,
-              height: 60,
-              borderRadius: 2,
-              background: `linear-gradient(135deg, ${color} 0%, ${alpha(color, 0.8)} 100%)`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              mb: 3,
-            }}
-          >
+    <div className="transform hover:scale-102 hover:-translate-y-1 transition duration-200">
+      <div className={`h-full rounded-3xl border border-opacity-20 hover:shadow-lg hover:border-opacity-40 transition-all duration-300`} style={{borderColor: color, background: `linear-gradient(135deg, ${color}1a 0%, ${color}0d 100%)`}}>
+        <div className="p-8">
+          <div className={`w-15 h-15 rounded-lg flex items-center justify-center mb-6`} style={{background: `linear-gradient(135deg, ${color} 0%, ${color}cc 100%)`}}>
             {icon}
-          </Box>
-          <Typography variant="h6" fontWeight="bold" sx={{ mb: 2 }}>
-            {title}
-          </Typography>
-          <Typography variant="body2" color="text.secondary" lineHeight={1.6}>
-            {description}
-          </Typography>
-        </CardContent>
-      </Card>
-    </Box>
+          </div>
+          <h3 className="text-xl font-bold mb-4">{title}</h3>
+          <p className="text-gray-600 leading-relaxed">{description}</p>
+        </div>
+      </div>
+    </div>
   )
 }
 
-const StatCard: React.FC<StatCardProps> = ({ value, label, color }) => (
-  <Box>
-    <Paper
-      sx={{
-        p: 3,
-        textAlign: 'center',
-        background: `linear-gradient(135deg, ${alpha(color, 0.1)} 0%, ${alpha(color, 0.05)} 100%)`,
-        border: `1px solid ${alpha(color, 0.2)}`,
-        borderRadius: 2,
-      }}
-    >
-      <Typography variant="h3" fontWeight="bold" color={color} sx={{ mb: 1 }}>
-        {value}
-      </Typography>
-      <Typography variant="body2" color="text.secondary">
-        {label}
-      </Typography>
-    </Paper>
-  </Box>
+const StatCard: React.FC<StatCardProps> = ({ value, label, sublabel, color }) => (
+  <div>
+    <div className={`p-6 text-center rounded-lg border border-opacity-20`} style={{borderColor: color, background: `linear-gradient(135deg, ${color}1a 0%, ${color}0d 100%)`}}>
+      <h2 className="text-4xl font-bold mb-2" style={{color}}>{value}</h2>
+      <p className="text-gray-600 font-medium">{label}</p>
+      {sublabel && <p className="text-gray-500 text-sm mt-1">{sublabel}</p>}
+    </div>
+  </div>
 )
 
 const Landing: React.FC = () => {
@@ -135,6 +108,11 @@ const Landing: React.FC = () => {
   const navigate = useNavigate()
   const { isConnected } = useAccount()
   const [showFeatures, setShowFeatures] = useState(false)
+  const [animatedStats, setAnimatedStats] = useState({
+    users: 0,
+    transactions: 0,
+    saved: 0,
+  })
 
   useEffect(() => {
     const timer = setTimeout(() => setShowFeatures(true), 500)
@@ -150,44 +128,95 @@ const Landing: React.FC = () => {
     }
   }, [isConnected, navigate])
 
+  useEffect(() => {
+    const animateStats = () => {
+      const targets = { users: 10, transactions: 250, saved: 95 };
+      const duration = 2000;
+      const steps = 60;
+      let current = { users: 0, transactions: 0, saved: 0 };
+      
+      const increment = {
+        users: targets.users / steps,
+        transactions: targets.transactions / steps,
+        saved: targets.saved / steps
+      };
+
+      const timer = setInterval(() => {
+        current.users = Math.min(current.users + increment.users, targets.users);
+        current.transactions = Math.min(current.transactions + increment.transactions, targets.transactions);
+        current.saved = Math.min(current.saved + increment.saved, targets.saved);
+        
+        setAnimatedStats({
+          users: Math.floor(current.users),
+          transactions: Math.floor(current.transactions),
+          saved: Math.floor(current.saved)
+        });
+
+        if (current.users >= targets.users && 
+            current.transactions >= targets.transactions && 
+            current.saved >= targets.saved) {
+          clearInterval(timer);
+        }
+      }, duration / steps);
+
+      return () => clearInterval(timer);
+    };
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && entry.target.id === 'stats') {
+            animateStats();
+          }
+        });
+      },
+      { threshold: 0.5 }
+    );
+
+    const statsElement = document.getElementById('stats');
+    if (statsElement) observer.observe(statsElement);
+
+    return () => observer.disconnect();
+  }, []);
+
   const features = [
     {
-      icon: <SecurityIcon sx={{ color: 'white', fontSize: 30 }} />,
-      title: 'Secure & Trustless',
-      description: 'Built on Ethereum with smart contracts that ensure transparent and immutable payroll processing.',
-      color: '#2196F3',
+      icon: <Shield className="w-8 h-8 text-blue-600" />,
+      title: "Military-Grade Security",
+      description: "Multi-signature wallets and smart contract audits ensure your payroll is protected by the highest security standards.",
+      gradient: "from-blue-500 to-cyan-500"
     },
     {
-      icon: <DnsIcon sx={{ color: 'white', fontSize: 30 }} />,
-      title: 'ENS Integration',
-      description: 'Seamlessly manage employee identities with Ethereum Name Service for human-readable addresses.',
-      color: '#9C27B0',
+      icon: <Bolt className="w-8 h-8 text-purple-600" />,
+      title: "Lightning Fast Payments",
+      description: "Process payroll in minutes, not days. Automated smart contracts execute payments instantly across the globe.",
+      gradient: "from-purple-500 to-pink-500"
     },
     {
-      icon: <SpeedIcon sx={{ color: 'white', fontSize: 30 }} />,
-      title: 'Automated Processing',
-      description: 'Schedule recurring payments and automate your entire payroll workflow with smart contract automation.',
-      color: '#FF9800',
+      icon: <Public className="w-8 h-8 text-emerald-600" />,
+      title: "Global Workforce",
+      description: "Pay employees worldwide without traditional banking limitations. Support for 50+ countries and multiple cryptocurrencies.",
+      gradient: "from-emerald-500 to-teal-500"
     },
     {
-      icon: <AnalyticsIcon sx={{ color: 'white', fontSize: 30 }} />,
-      title: 'Advanced Analytics',
-      description: 'Comprehensive dashboards and reporting tools to track payroll expenses and employee metrics.',
-      color: '#4CAF50',
+      icon: <BarChart className="w-8 h-8 text-orange-600" />,
+      title: "Advanced Analytics",
+      description: "Real-time insights into payroll costs, employee metrics, and financial forecasting with beautiful dashboards.",
+      gradient: "from-orange-500 to-red-500"
     },
     {
-      icon: <PaymentIcon sx={{ color: 'white', fontSize: 30 }} />,
-      title: 'Multi-Token Support',
-      description: 'Pay employees in ETH, USDC, DAI, or other supported tokens with automatic conversion rates.',
-      color: '#F44336',
+      icon: <AttachMoney className="w-8 h-8 text-yellow-600" />,
+      title: "Multi-Token Support",
+      description: "Pay in ETH, USDC, DAI, or any ERC-20 token. Automatic conversion and competitive exchange rates included.",
+      gradient: "from-yellow-500 to-orange-500"
     },
     {
-      icon: <ShieldIcon sx={{ color: 'white', fontSize: 30 }} />,
-      title: 'Enterprise Security',
-      description: 'Military-grade encryption and multi-signature support for maximum security and compliance.',
-      color: '#795548',
-    },
-  ]
+      icon: <Lock className="w-8 h-8 text-indigo-600" />,
+      title: "Compliance Ready",
+      description: "Built-in tax reporting, audit trails, and regulatory compliance for enterprises in any jurisdiction.",
+      gradient: "from-indigo-500 to-purple-500"
+    }
+  ];
 
   const benefits = [
     'Reduce payroll processing time by 90%',
@@ -199,376 +228,268 @@ const Landing: React.FC = () => {
   ]
 
   return (
-    <Box sx={{ minHeight: '100vh', background: `linear-gradient(135deg, ${theme.palette.primary.main}10 0%, ${theme.palette.secondary.main}10 100%)` }}>
+    <div className="min-h-screen" style={{background: `linear-gradient(135deg, ${theme.palette.primary.main}10 0%, ${theme.palette.secondary.main}10 100%)`}}>
       {/* Navigation */}
-      <Container maxWidth="lg">
-        <Box sx={{ py: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Box>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <Avatar
-                sx={{
-                  bgcolor: theme.palette.primary.main,
-                  mr: 2,
-                  width: 48,
-                  height: 48,
-                }}
-              >
-                <PaymentIcon />
-              </Avatar>
-              <Typography variant="h5" fontWeight="bold" color="primary">
-                PayrollX
-              </Typography>
-            </Box>
-          </Box>
+      <div className="sticky top-0 z-50 bg-white/80 backdrop-blur-sm border-b border-gray-200 shadow-sm">
+        <div className="container mx-auto max-w-7xl">
+          <div className="py-6 flex justify-between items-center">
+            <div>
+              <div className="flex items-center">
+                <div className="bg-gradient-to-r from-blue-600 to-blue-700 mr-4 w-12 h-12 rounded-full flex items-center justify-center shadow-md">
+                  <PaymentIcon className="text-white" />
+                </div>
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">PayrollX</h1>
+              </div>
+            </div>
 
-          <Box>
-            <Stack direction="row" spacing={2} alignItems="center">
-              <Button variant="text" color="primary">
-                Features
-              </Button>
-              <Button variant="text" color="primary">
-                Pricing
-              </Button>
-              <Button variant="text" color="primary">
-                Docs
-              </Button>
-              <ConnectButton />
-            </Stack>
-          </Box>
-        </Box>
-      </Container>
+            <div>
+              <div className="flex items-center space-x-8">
+                <nav className="hidden md:flex items-center space-x-6 mr-8">
+                  <a href="#features" className="text-gray-600 hover:text-blue-600 font-medium transition-colors">Features</a>
+                  <a href="#stats" className="text-gray-600 hover:text-blue-600 font-medium transition-colors">Stats</a>
+                  <a href="#how-it-works" className="text-gray-600 hover:text-blue-600 font-medium transition-colors">How It Works</a>
+                  <a href="#benefits" className="text-gray-600 hover:text-blue-600 font-medium transition-colors">Benefits</a>
+                </nav>
+                <ConnectButton />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Hero Section */}
-      <Container maxWidth="lg">
-        <Box sx={{ py: 8, textAlign: 'center' }}>
-          <Box>
-            <Chip
-              label="🚀 Now in Beta"
-              sx={{
-                mb: 4,
-                px: 2,
-                py: 1,
-                fontSize: '0.9rem',
-                background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
-                color: 'white',
-                fontWeight: 'bold',
-              }}
-            />
-          </Box>
+     {/* Hero Section */}
+     <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-[url('/src/assets/background.png')] bg-cover bg-center">
+        {/* Background Elements */}
+        <div className="absolute inset-0">
+          <div className="absolute top-20 left-10 w-72 h-72 bg-blue-400/10 rounded-full blur-3xl animate-pulse"></div>
+          <div className="absolute bottom-20 right-10 w-96 h-96 bg-purple-400/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
+          <div className="absolute top-1/2 left-1/2 w-80 h-80 bg-gradient-to-r from-cyan-400/10 to-blue-400/10 rounded-full blur-3xl transform -translate-x-1/2 -translate-y-1/2 animate-pulse delay-500"></div>
+        </div>
 
-          <Box
-          >
-            <Typography
-              variant="h1"
-              sx={{
-                fontSize: { xs: '2.5rem', md: '4rem' },
-                fontWeight: 'bold',
-                background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
-                backgroundClip: 'text',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                mb: 3,
-                lineHeight: 1.2,
-              }}
-            >
-              The Future of
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10 pt-20 mb-96">
+          <div className="animate-fade-in">
+            {/* Badge */}
+            <div className="inline-flex items-center space-x-2 bg-white/60 backdrop-blur-sm border border-white/20 rounded-full px-6 py-2 mb-8 shadow-lg">
+              <Rocket className="w-4 h-4 text-blue-600" />
+              <span className="text-sm font-medium text-gray-700">Trusted by 100+ companies worldwide</span>
+            </div>
+
+            {/* Main Heading */}
+            <h1 className="text-6xl md:text-7xl lg:text-8xl font-black mb-8">
+              <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-cyan-600 bg-clip-text text-transparent">
+                The Future
+              </span>
               <br />
-              Payroll
-            </Typography>
-          </Box>
+              <span className="text-gray-900">of Payroll</span>
+            </h1>
 
-          <Box
-          >
-            <Typography
-              variant="h5"
-              color="text.secondary"
-              sx={{
-                mb: 6,
-                maxWidth: 600,
-                mx: 'auto',
-                lineHeight: 1.6,
-                fontWeight: 400,
-              }}
-            >
-              Revolutionize your payroll management with blockchain technology.
-              Secure, transparent, and efficient payments for the modern workforce.
-            </Typography>
-          </Box>
+            {/* Subtitle */}
+            <p className="text-xl md:text-2xl text-gray-600 mb-12 max-w-4xl mx-auto leading-relaxed">
+              Transform your business with Web3-powered payroll management. 
+              <span className="font-semibold text-gray-800"> Secure, transparent, and lightning-fast</span> payments 
+              on the Ethereum blockchain.
+            </p>
 
-          <Box
-          >
-            <Stack
-              direction={{ xs: 'column', sm: 'row' }}
-              spacing={3}
-              justifyContent="center"
-              alignItems="center"
-              sx={{ mb: 8 }}
-            >
-              <ConnectButton.Custom>
-                {({ account, chain, openAccountModal, openChainModal, openConnectModal, mounted }) => {
-                  return (
-                    <div
-                      {...(!mounted && {
-                        'aria-hidden': true,
-                        style: {
-                          opacity: 0,
-                          pointerEvents: 'none',
-                          userSelect: 'none',
-                        },
-                      })}
-                    >
-                      {(() => {
-                        if (!mounted || !account || !chain) {
-                          return (
-                            <Button
-                              onClick={openConnectModal}
-                              variant="contained"
-                              size="large"
-                              startIcon={<WalletIcon />}
-                              endIcon={<ArrowForwardIcon />}
-                              sx={{
-                                px: 4,
-                                py: 2,
-                                fontSize: '1.1rem',
-                                fontWeight: 'bold',
-                                borderRadius: 3,
-                                background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
-                                '&:hover': {
-                                  background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.secondary.dark} 100%)`,
-                                  transform: 'translateY(-2px)',
-                                },
-                                transition: 'all 0.3s ease',
-                              }}
-                            >
-                              Connect Wallet to Get Started
-                            </Button>
-                          )
-                        }
+            {/* CTA Buttons */}
+            <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6 mb-16">
+              <div className="transform hover:scale-105 transition-all duration-300">
+                <ConnectButton />
+              </div>
+              <button className="group bg-white/60 backdrop-blur-sm border border-white/20 text-gray-700 px-8 py-4 rounded-xl font-semibold text-lg hover:shadow-lg transform hover:scale-105 transition-all duration-300 flex items-center space-x-2">
+                <PlayCircle className="w-5 h-5" />
+                <span>Watch Demo</span>
+              </button>
+            </div>
 
-                        return (
-                          <Box
-                          >
-                            <Paper
-                              sx={{
-                                p: 3,
-                                borderRadius: 3,
-                                background: `linear-gradient(135deg, ${theme.palette.success.main}20 0%, ${theme.palette.success.main}10 100%)`,
-                                border: `2px solid ${theme.palette.success.main}40`,
-                                textAlign: 'center',
-                              }}
-                            >
-                              <CheckIcon sx={{ color: 'success.main', fontSize: 40, mb: 2 }} />
-                              <Typography variant="h6" fontWeight="bold" color="success.main" sx={{ mb: 1 }}>
-                                Wallet Connected!
-                              </Typography>
-                              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                                Redirecting to dashboard...
-                              </Typography>
-                              <Typography variant="body2" fontFamily="monospace" color="text.secondary">
-                                {account.address}
-                              </Typography>
-                            </Paper>
-                          </Box>
-                        )
-                      })()}
+            {/* Trust Indicators */}
+            
+          </div>
+        </div>
+
+        {/* Scroll Indicator */}
+        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 animate-bounce">
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </section>
+      {/* Stats Section */}
+      <section id="stats" className="py-16 bg-white">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
+                <StatCard
+                  value={`${animatedStats.users.toLocaleString()}+`}
+                  label="Happy Users"
+                  sublabel="Across 50+ countries"
+                  color="from-blue-50 to-cyan-50"
+                />
+                <StatCard
+                  value={`$${(animatedStats.transactions / 1000000).toFixed(1)}M+`}
+                  label="Processed"
+                  sublabel="In total payroll volume"
+                  color="from-purple-50 to-pink-50"
+                />
+                <StatCard
+                  value={`${animatedStats.saved}%`}
+                  label="Time Saved"
+                  sublabel="Compared to traditional payroll"
+                  color="from-emerald-50 to-teal-50"
+                />
+              </div>
+            </div>
+          </section>
+
+          {/* Features Section */}
+          <section id="features" className="py-24 bg-gradient-to-br from-gray-50 to-blue-50">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="text-center mb-16">
+                <span className="inline-block px-4 py-2 bg-blue-100 text-blue-800 rounded-full text-sm font-semibold mb-4">
+                  Enterprise-Grade Platform
+                </span>
+                <h2 className="text-4xl sm:text-5xl font-extrabold text-gray-900 mb-4">
+                  Built for <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Scale & Security</span>
+                </h2>
+                <p className="text-lg text-gray-600 max-w-3xl mx-auto">
+                  Trusted by Fortune 500 companies, our platform offers institutional-level security and compliance.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {features.map((feature, index) => (
+                  <FeatureCard color={''} key={index} {...feature} />
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* How It Works Section */}
+          <section id="how-it-works" className="py-24 bg-white">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="text-center mb-16">
+                <span className="inline-block px-4 py-2 bg-gray-100 text-gray-700 rounded-full text-sm font-semibold mb-4">
+                  Simple Implementation
+                </span>
+                <h2 className="text-4xl sm:text-5xl font-extrabold text-gray-900 mb-4">
+                  How It <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Works</span>
+                </h2>
+                <p className="text-lg text-gray-600 max-w-3xl mx-auto">
+                  Set up and automate your payroll in under 10 minutes with our intuitive platform.
+                </p>
+              </div>
+              <div className="relative">
+                {/* <div className="hidden lg:block absolute top-1/2 left-1/4 right-1/4 h-0.5 bg-gradient-to-r from-blue-200 to-purple-200 transform -translate-y-1/2"></div> */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+                  <div className="group text-center">
+                    <div className="relative mb-6">
+                      <div className="absolute inset-0 bg-blue-100/20 rounded-2xl blur-lg group-hover:scale-105 transition-transform"></div>
+                      <div className="relative bg-white p-6 rounded-2xl shadow-lg">
+                        <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center mx-auto mb-4">
+                          <WalletIcon className="w-8 h-8 text-white" />
+                        </div>
+                        <span className="absolute -top-3 -right-3 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold">1</span>
+                      </div>
                     </div>
-                  )
-                }}
-              </ConnectButton.Custom>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2">Connect & Configure</h3>
+                    <p className="text-gray-600">Connect your wallet, complete KYB, and set up your company profile.</p>
+                  </div>
+                  <div className="group text-center">
+                    <div className="relative mb-6">
+                      <div className="absolute inset-0 bg-purple-100/20 rounded-2xl blur-lg group-hover:scale-105 transition-transform"></div>
+                      <div className="relative bg-white p-6 rounded-2xl shadow-lg">
+                        <div className="w-16 h-16 bg-gradient-to-br from-purple-600 to-purple-700 rounded-xl flex items-center justify-center mx-auto mb-4">
+                          {/* Import UserGroupIcon from heroicons/react */}
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                          </svg>
+                        </div>
+                        <span className="absolute -top-3 -right-3 w-8 h-8 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold">2</span>
+                      </div>
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2">Add Team & Schedules</h3>
+                    <p className="text-gray-600">Import employees and configure salaries and payment schedules.</p>
+                  </div>
+                  <div className="group text-center">
+                    <div className="relative mb-6">
+                      <div className="absolute inset-0 bg-emerald-100/20 rounded-2xl blur-lg group-hover:scale-105 transition-transform"></div>
+                      <div className="relative bg-white p-6 rounded-2xl shadow-lg">
+                        <div className="w-16 h-16 bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-xl flex items-center justify-center mx-auto mb-4">
+                          <TrendingUpIcon className="w-8 h-8 text-white" />
+                        </div>
+                        <span className="absolute -top-3 -right-3 w-8 h-8 bg-emerald-600 text-white rounded-full flex items-center justify-center font-bold">3</span>
+                      </div>
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2">Launch & Monitor</h3>
+                    <p className="text-gray-600">Activate payments and monitor via real-time dashboards.</p>
+                  </div>
+                </div>
+              </div>
+              
+            </div>
+          </section>
 
-              <Button
-                variant="outlined"
-                size="large"
-                endIcon={<LaunchIcon />}
-                sx={{
-                  px: 4,
-                  py: 2,
-                  fontSize: '1.1rem',
-                  borderRadius: 3,
-                  borderWidth: 2,
-                  '&:hover': {
-                    borderWidth: 2,
-                    transform: 'translateY(-2px)',
-                  },
-                  transition: 'all 0.3s ease',
-                }}
-              >
-                View Demo
-              </Button>
-            </Stack>
-          </Box>
-
-          {/* Stats */}
-          <Box
-          >
-            <Grid container spacing={4} sx={{ mb: 8 }}>
-              <Grid item xs={12} sm={4}>
-                <StatCard value="$2.5M+" label="Total Processed" color={theme.palette.primary.main} />
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <StatCard value="500+" label="Companies" color={theme.palette.secondary.main} />
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <StatCard value="99.9%" label="Uptime" color={theme.palette.success.main} />
-              </Grid>
-            </Grid>
-          </Box>
-        </Box>
-      </Container>
-
-      {/* Features Section */}
-      <Container maxWidth="lg">
-        <Box sx={{ py: 8 }}>
-          <Box
-          >
-            <Typography
-              variant="h2"
-              fontWeight="bold"
-              textAlign="center"
-              sx={{ mb: 2, fontSize: { xs: '2rem', md: '3rem' } }}
-            >
-              Powerful Features
-            </Typography>
-            <Typography
-              variant="h6"
-              color="text.secondary"
-              textAlign="center"
-              sx={{ mb: 8, maxWidth: 600, mx: 'auto' }}
-            >
-              Everything you need to manage payroll in the Web3 era
-            </Typography>
-          </Box>
-
-          <Fade in={showFeatures} timeout={1000}>
-            <Grid container spacing={4}>
-              {features.map((feature, index) => (
-                <Grid item xs={12} md={4} key={index}>
-                  <Box
-                  >
-                    <FeatureCard {...feature} />
-                  </Box>
-                </Grid>
-              ))}
-            </Grid>
-          </Fade>
-        </Box>
-      </Container>
 
       {/* Benefits Section */}
-      <Box sx={{ background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${alpha(theme.palette.secondary.main, 0.05)} 100%)` }}>
-        <Container maxWidth="lg">
-          <Box sx={{ py: 8 }}>
-            <Grid container spacing={8} alignItems="center">
-              <Grid item xs={12} md={6}>
-                <Box
-                >
-                  <Typography variant="h3" fontWeight="bold" sx={{ mb: 4 }}>
-                    Why Choose PayrollX?
-                  </Typography>
-                  <Typography variant="h6" color="text.secondary" sx={{ mb: 4, lineHeight: 1.6 }}>
-                    Transform your payroll operations with cutting-edge blockchain technology
-                    that provides unmatched security, transparency, and efficiency.
-                  </Typography>
-                  <List>
-                    {benefits.map((benefit, index) => (
-                      <Box
-                        key={index}
-                      >
-                        <ListItem sx={{ px: 0 }}>
-                          <ListItemIcon>
-                            <CheckIcon sx={{ color: 'success.main' }} />
-                          </ListItemIcon>
-                          <ListItemText
-                            primary={benefit}
-                            primaryTypographyProps={{
-                              fontWeight: 500,
-                              fontSize: '1.1rem',
-                            }}
-                          />
-                        </ListItem>
-                      </Box>
-                    ))}
-                  </List>
-                </Box>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <Box
-                >
-                  <Box
-                    sx={{
-                      position: 'relative',
-                      height: 400,
-                      background: `linear-gradient(135deg, ${theme.palette.primary.main}20 0%, ${theme.palette.secondary.main}20 100%)`,
-                      borderRadius: 4,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <Typography variant="h4" color="text.secondary">
-                      Dashboard Preview
-                    </Typography>
-                  </Box>
-                </Box>
-              </Grid>
-            </Grid>
-          </Box>
-        </Container>
-      </Box>
+      <div id="benefits" className="bg-gradient-to-r from-blue-50 to-purple-50">
+        <div className="container mx-auto max-w-7xl py-16">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
+            <div>
+              <h2 className="text-4xl font-bold mb-8">
+                Why Choose PayrollX?
+              </h2>
+              <p className="text-xl text-gray-600 mb-8 leading-relaxed">
+                Transform your payroll operations with cutting-edge blockchain technology
+                that provides unmatched security, transparency, and efficiency.
+              </p>
+              <ul className="space-y-4">
+                {benefits.map((benefit, index) => (
+                  <li key={index} className="flex items-center">
+                    <CheckIcon className="text-green-500 mr-4" />
+                    <span className="text-lg font-medium">{benefit}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <div className="h-96 rounded-xl flex items-center justify-center" style={{background: `linear-gradient(135deg, ${theme.palette.primary.main}20 0%, ${theme.palette.secondary.main}20 100%)`}}>
+                <p className="text-2xl text-gray-600">Dashboard Preview</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      {/* CTA Section */}
-      <Container maxWidth="lg">
-        <Box sx={{ py: 8, textAlign: 'center' }}>
-          <Box
-          >
-            <Typography variant="h3" fontWeight="bold" sx={{ mb: 3 }}>
-              Ready to Get Started?
-            </Typography>
-            <Typography variant="h6" color="text.secondary" sx={{ mb: 6, maxWidth: 500, mx: 'auto' }}>
-              Join thousands of companies already using PayrollX to streamline their payroll operations.
-            </Typography>
-            <ConnectButton />
-          </Box>
-        </Box>
-      </Container>
+     
 
       {/* Footer */}
-      <Divider />
-      <Container maxWidth="lg">
-        <Box sx={{ py: 6 }}>
-          <Grid container spacing={4} justifyContent="space-between" alignItems="center">
-            <Grid item xs={12} md={6}>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <Avatar sx={{ bgcolor: theme.palette.primary.main, mr: 2 }}>
-                  <PaymentIcon />
-                </Avatar>
-                <Typography variant="h6" fontWeight="bold">
-                  PayrollX
-                </Typography>
-              </Box>
-              <Typography variant="body2" color="text.secondary">
-                The future of payroll management is here.
-                <br />
-                Built with ❤️ for the Web3 community.
-              </Typography>
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <Stack direction="row" spacing={2} justifyContent={{ xs: 'center', md: 'flex-end' }}>
-                <IconButton color="primary">
-                  <GitHubIcon />
-                </IconButton>
-                <IconButton color="primary">
-                  <TwitterIcon />
-                </IconButton>
-                <IconButton color="primary">
-                  <LinkedInIcon />
-                </IconButton>
-              </Stack>
-            </Grid>
-          </Grid>
-        </Box>
-      </Container>
-    </Box>
+      <hr />
+      <div className="container mx-auto max-w-7xl py-12">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+          <div>
+            <div className="flex items-center mb-4">
+              <div className="bg-blue-600 rounded-full p-2 mr-4">
+                <PaymentIcon className="text-white" />
+              </div>
+              <h3 className="text-xl font-bold">PayrollX</h3>
+            </div>
+            <p className="text-gray-600">
+              The future of payroll management is here.
+              
+            </p>
+          </div>
+          <div className="flex justify-center md:justify-end space-x-4">
+            <button className="text-blue-600">
+              <GitHubIcon />
+            </button>
+            <button className="text-blue-600">
+              <TwitterIcon />
+            </button>
+            <button className="text-blue-600">
+              <LinkedInIcon />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 

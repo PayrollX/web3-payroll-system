@@ -32,25 +32,50 @@ const hardhat = {
  * @author Dev Austin
  */
 
+// Get WalletConnect project ID from environment
+const walletConnectProjectId = process.env.REACT_APP_WALLETCONNECT_PROJECT_ID
+
+// Log the project ID for debugging (remove in production)
+console.log('WalletConnect Project ID:', walletConnectProjectId ? 'Found' : 'Not found')
+
+// Create wallet list - include WalletConnect if we have a valid project ID
+const createWalletList = () => {
+  const baseWallets = [
+    injectedWallet({ chains: [hardhat, mainnet, sepolia, goerli] }),
+    metaMaskWallet({ 
+      projectId: walletConnectProjectId || 'demo-project-id',
+      chains: [hardhat, mainnet, sepolia, goerli] 
+    }),
+    coinbaseWallet({ 
+      appName: 'Web3 Payroll System',
+      chains: [hardhat, mainnet, sepolia, goerli] 
+    }),
+  ]
+
+  // Add WalletConnect if we have a valid project ID
+  if (walletConnectProjectId && 
+      walletConnectProjectId !== 'your_project_id' && 
+      walletConnectProjectId !== 'your_walletconnect_project_id_here' &&
+      walletConnectProjectId.length > 10) {
+    console.log('Adding WalletConnect with project ID')
+    baseWallets.push(
+      walletConnectWallet({ 
+        projectId: walletConnectProjectId,
+        chains: [mainnet, sepolia, goerli] 
+      })
+    )
+  } else {
+    console.log('Skipping WalletConnect - invalid or missing project ID')
+  }
+
+  return baseWallets
+}
+
 // Create connectors for supported wallets
 const connectors = connectorsForWallets([
   {
     groupName: 'Recommended',
-    wallets: [
-      injectedWallet({ chains: [hardhat, mainnet, sepolia, goerli] }),
-      metaMaskWallet({ 
-        projectId: process.env.REACT_APP_WALLETCONNECT_PROJECT_ID || 'your_project_id',
-        chains: [hardhat, mainnet, sepolia, goerli] 
-      }),
-      walletConnectWallet({ 
-        projectId: process.env.REACT_APP_WALLETCONNECT_PROJECT_ID || 'your_project_id',
-        chains: [mainnet, sepolia, goerli] 
-      }),
-      coinbaseWallet({ 
-        appName: 'Web3 Payroll System',
-        chains: [hardhat, mainnet, sepolia, goerli] 
-      }),
-    ],
+    wallets: createWalletList(),
   },
 ])
 
@@ -59,8 +84,8 @@ export const config = createConfig({
   autoConnect: true,
   connectors,
   publicClient: createPublicClient({
-    chain: mainnet,
-    transport: http('https://eth-mainnet.g.alchemy.com/v2/demo'),
+    chain: hardhat, // Use hardhat for development
+    transport: http('http://127.0.0.1:8545'),
   }),
 })
 
@@ -76,6 +101,11 @@ export const queryClient = new QueryClient({
 
 // Contract addresses (will be updated after deployment)
 export const CONTRACT_ADDRESSES = {
+  [hardhat.id]: {
+    payrollManager: process.env.REACT_APP_PAYROLL_MANAGER_HARDHAT || '',
+    ensRegistry: '0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e',
+    publicResolver: '0x4976fb03C32e5B8cfe2b6cCB31c09Ba78EBaBa41',
+  },
   [mainnet.id]: {
     payrollManager: process.env.REACT_APP_PAYROLL_MANAGER_MAINNET || '',
     ensRegistry: '0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e',
@@ -95,6 +125,12 @@ export const CONTRACT_ADDRESSES = {
 
 // Token addresses
 export const TOKEN_ADDRESSES = {
+  [hardhat.id]: {
+    ETH: '0x0000000000000000000000000000000000000000',
+    USDC: '0x0000000000000000000000000000000000000000', // Mock addresses for local testing
+    USDT: '0x0000000000000000000000000000000000000000',
+    DAI: '0x0000000000000000000000000000000000000000',
+  },
   [mainnet.id]: {
     ETH: '0x0000000000000000000000000000000000000000',
     USDC: '0xA0b86a33E6e527e1F8A4E84F57FB1e8A84eB8aEd',
