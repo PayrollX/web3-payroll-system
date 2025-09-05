@@ -1,12 +1,13 @@
-import { createConfig } from 'wagmi'
-import { http, createPublicClient } from 'viem'
+import { createConfig, configureChains } from 'wagmi'
+import { publicProvider } from 'wagmi/providers/public'
+import { alchemyProvider } from 'wagmi/providers/alchemy'
 import { mainnet, sepolia, goerli } from 'wagmi/chains'
 import { QueryClient } from '@tanstack/react-query'
 import { connectorsForWallets } from '@rainbow-me/rainbowkit'
 import {
-  injectedWallet,
   metaMaskWallet,
-  walletConnectWallet,
+  coinbaseWallet,
+  braveWallet,
 } from '@rainbow-me/rainbowkit/wallets'
 
 // Define local hardhat chain for testing
@@ -24,10 +25,10 @@ const hardhat = {
     default: { http: ['http://127.0.0.1:8545'] },
   },
   testnet: true,
-}
+} as const
 
 /**
- * Wagmi configuration for Web3 Payroll System
+ * Wagmi configuration for Web3 Payroll System - MetaMask, Coinbase & Brave Only
  * @author Dev Austin
  */
 
@@ -37,52 +38,41 @@ const walletConnectProjectId = process.env.REACT_APP_WALLETCONNECT_PROJECT_ID
 // Log the project ID for debugging (remove in production)
 console.log('WalletConnect Project ID:', walletConnectProjectId ? 'Found' : 'Not found')
 
-// Create wallet list - include WalletConnect if we have a valid project ID
-const createWalletList = () => {
-  const baseWallets = [
-    injectedWallet({ chains: [hardhat, mainnet, sepolia, goerli] }),
-    metaMaskWallet({ 
-      projectId: walletConnectProjectId || 'demo-project-id',
-      chains: [hardhat, mainnet, sepolia, goerli] 
-    }),
-    // Removed coinbaseWallet to eliminate websocket errors in development
+// Configure chains and providers
+const { chains, publicClient, webSocketPublicClient } = configureChains(
+  [sepolia, mainnet, goerli, hardhat],
+  [
+    alchemyProvider({ apiKey: process.env.REACT_APP_ALCHEMY_API_KEY || '' }),
+    publicProvider()
   ]
+)
 
-  // Add WalletConnect if we have a valid project ID
-  if (walletConnectProjectId && 
-      walletConnectProjectId !== 'your_project_id' && 
-      walletConnectProjectId !== 'your_walletconnect_project_id_here' &&
-      walletConnectProjectId.length > 10) {
-    console.log('Adding WalletConnect with project ID')
-    baseWallets.push(
-      walletConnectWallet({ 
-        projectId: walletConnectProjectId,
-        chains: [mainnet, sepolia, goerli] 
-      })
-    )
-  } else {
-    console.log('Skipping WalletConnect - invalid or missing project ID')
-  }
-
-  return baseWallets
-}
-
-// Create connectors for supported wallets
+// Create connectors for ONLY MetaMask, Coinbase, and Brave
 const connectors = connectorsForWallets([
   {
-    groupName: 'Recommended',
-    wallets: createWalletList(),
-  },
+    groupName: 'Popular Wallets',
+    wallets: [
+      metaMaskWallet({ 
+        projectId: walletConnectProjectId || 'demo-project-id',
+        chains
+      }),
+      coinbaseWallet({
+        appName: 'Web3 Payroll System',
+        chains
+      }),
+      braveWallet({
+        chains
+      }),
+    ],
+  }
 ])
 
-// Create wagmi config
+// Create wagmi config 
 export const config = createConfig({
   autoConnect: true,
   connectors,
-  publicClient: createPublicClient({
-    chain: hardhat, // Use hardhat for development
-    transport: http('http://127.0.0.1:8545'),
-  }),
+  publicClient,
+  webSocketPublicClient
 })
 
 // Create query client for React Query
@@ -101,23 +91,31 @@ export const CONTRACT_ADDRESSES = {
     payrollManager: process.env.REACT_APP_PAYROLL_MANAGER_HARDHAT || '',
     ensRegistry: '0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e',
     publicResolver: '0x4976fb03C32e5B8cfe2b6cCB31c09Ba78EBaBa41',
+    baseRegistrar: '0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85',
+    ethRegistrarController: '0x253553366Da8546fC250F225fe3d25d0C782303b',
   },
   [mainnet.id]: {
     payrollManager: process.env.REACT_APP_PAYROLL_MANAGER_MAINNET || '',
     ensRegistry: '0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e',
     publicResolver: '0x4976fb03C32e5B8cfe2b6cCB31c09Ba78EBaBa41',
+    baseRegistrar: '0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85',
+    ethRegistrarController: '0x253553366Da8546fC250F225fe3d25d0C782303b',
   },
   [sepolia.id]: {
     payrollManager: process.env.REACT_APP_PAYROLL_MANAGER_SEPOLIA || '',
     ensRegistry: '0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e',
-    publicResolver: '0x4976fb03C32e5B8cfe2b6cCB31c09Ba78EBaBa41',
+    publicResolver: '0x8FADE66B79cC9f707aB26799354482EB93a5B7dD', // Sepolia resolver
+    baseRegistrar: '0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85',
+    ethRegistrarController: '0xFED6a969AaA60E4961FCD3EBF1A2e8913ac65B72', // Sepolia controller
   },
   [goerli.id]: {
     payrollManager: process.env.REACT_APP_PAYROLL_MANAGER_GOERLI || '',
     ensRegistry: '0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e',
     publicResolver: '0x4976fb03C32e5B8cfe2b6cCB31c09Ba78EBaBa41',
+    baseRegistrar: '0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85',
+    ethRegistrarController: '0x253553366Da8546fC250F225fe3d25d0C782303b',
   },
-}
+} as const
 
 // Token addresses
 export const TOKEN_ADDRESSES = {
@@ -135,9 +133,9 @@ export const TOKEN_ADDRESSES = {
   },
   [sepolia.id]: {
     ETH: '0x0000000000000000000000000000000000000000',
-    USDC: '0x0000000000000000000000000000000000000000', // No USDC on Sepolia
-    USDT: '0x0000000000000000000000000000000000000000', // No USDT on Sepolia
-    DAI: '0x0000000000000000000000000000000000000000', // No DAI on Sepolia
+    USDC: '0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8', // Sepolia USDC
+    USDT: '0xC2C527C0CACF457746Bd31B2a698Fe89de2b6d49', // Sepolia USDT
+    DAI: '0x68194a729C2450ad26072b3D33ADaCbcef39D574', // Sepolia DAI
   },
   [goerli.id]: {
     ETH: '0x0000000000000000000000000000000000000000',
@@ -145,7 +143,7 @@ export const TOKEN_ADDRESSES = {
     USDT: '0x0000000000000000000000000000000000000000', // No USDT on Goerli
     DAI: '0x0000000000000000000000000000000000000000', // No DAI on Goerli
   },
-}
+} as const
 
 // Payment frequency options
 export const PAYMENT_FREQUENCIES = [
@@ -162,3 +160,19 @@ export const TOKEN_OPTIONS = [
   { value: '0xdAC17F958D2ee523a2206206994597C13D831ec7', label: 'USDT', symbol: 'USDT', decimals: 6 },
   { value: '0x6B175474E89094C44Da98b954EedeAC495271d0F', label: 'DAI', symbol: 'DAI', decimals: 18 },
 ] as const
+
+// Utility function to get current chain's contract addresses
+export const getCurrentChainAddresses = (chainId: string | number) => {
+  return CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES] || CONTRACT_ADDRESSES[sepolia.id]
+}
+
+// Utility function to get current chain's token addresses  
+export const getCurrentChainTokens = (chainId: string | number) => {
+  return TOKEN_ADDRESSES[chainId as keyof typeof TOKEN_ADDRESSES] || TOKEN_ADDRESSES[sepolia.id]
+}
+
+// Check if wallet is supported
+export const isSupportedWallet = (walletName: string) => {
+  const supported = ['MetaMask', 'Coinbase Wallet', 'Brave Wallet']
+  return supported.includes(walletName)
+}

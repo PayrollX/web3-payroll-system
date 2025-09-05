@@ -104,10 +104,10 @@ const ENSManagement: React.FC = () => {
     if (!ensService || !domainName) return
 
     try {
-      const available = await ensService.checkDomainAvailability(domainName)
-      setIsAvailable(available)
+      const availability = await ensService.checkDomainAvailability(domainName)
+      setIsAvailable(availability.available)
       
-      if (available) {
+      if (availability.available) {
         dispatch(addNotification({
           type: 'success',
           title: 'Domain Available',
@@ -117,7 +117,7 @@ const ENSManagement: React.FC = () => {
         dispatch(addNotification({
           type: 'warning',
           title: 'Domain Unavailable',
-          message: `${domainName}.eth is already taken`
+          message: availability.reason || `${domainName}.eth is already taken`
         }))
       }
     } catch (error) {

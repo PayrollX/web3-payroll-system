@@ -57,6 +57,7 @@ import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { useAuth } from '../context/AuthContext'
 import { Link, useNavigate } from 'react-router-dom'
 import background from '../assets/background.png'
+import WalletDebug from '../components/WalletDebug'
 
 /**
  * Professional Landing Page for Web3 Payroll System
@@ -223,6 +224,9 @@ const Landing: React.FC = () => {
 
   return (
     <div className="min-h-screen" style={{background: `linear-gradient(135deg, ${theme.palette.primary.main}10 0%, ${theme.palette.secondary.main}10 100%)`}}>
+      {/* Wallet Debug Component - Remove in production */}
+      <WalletDebug />
+      
       {/* Navigation */}
       <div className="sticky top-0 z-50 bg-white/80 backdrop-blur-sm border-b border-gray-200 shadow-sm">
         <div className="container mx-auto max-w-7xl">

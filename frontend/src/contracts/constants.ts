@@ -11,7 +11,7 @@ export const NETWORKS = {
   MAINNET: {
     chainId: 1,
     name: 'Ethereum Mainnet',
-    rpcUrl: 'https://eth-mainnet.g.alchemy.com/v2/demo',
+    rpcUrl: 'https://eth-sepolia.g.alchemy.com/v2/Bl5IpQ4M7YdHcMngA1n7k',
     blockExplorer: 'https://etherscan.io',
     ensRegistry: '0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e',
     publicResolver: '0x4976fb03C32e5B8cfe2b6Cb31c09Ba78EBaBa41',
@@ -19,7 +19,7 @@ export const NETWORKS = {
   SEPOLIA: {
     chainId: 11155111,
     name: 'Sepolia Testnet',
-    rpcUrl: 'https://eth-sepolia.g.alchemy.com/v2/demo',
+    rpcUrl: 'https://eth-sepolia.g.alchemy.com/v2/Bl5IpQ4M7YdHcMngA1n7k',
     blockExplorer: 'https://sepolia.etherscan.io',
     ensRegistry: '0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e',
     publicResolver: '0x4976fb03C32e5B8cfe2b6Cb31c09Ba78EBaBa41',
@@ -52,10 +52,10 @@ export const TOKEN_ADDRESSES = {
   },
   [NETWORKS.SEPOLIA.chainId]: {
     ETH: '0x0000000000000000000000000000000000000000',
-    // Test tokens on Sepolia (if available)
-    USDC: '0x0000000000000000000000000000000000000000',
-    USDT: '0x0000000000000000000000000000000000000000',
-    DAI: '0x0000000000000000000000000000000000000000',
+    // Test tokens on Sepolia
+    USDC: '0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8', // Sepolia USDC
+    USDT: '0x0000000000000000000000000000000000000000', // No USDT on Sepolia
+    DAI: '0x0000000000000000000000000000000000000000', // No DAI on Sepolia
   },
   [NETWORKS.GOERLI.chainId]: {
     ETH: '0x0000000000000000000000000000000000000000',
@@ -192,7 +192,7 @@ export const DEFAULTS = {
   GAS_LIMIT: 500000,
   GAS_PRICE: '20000000000', // 20 gwei
   PAYMENT_FREQUENCY: PAYMENT_FREQUENCIES.MONTHLY,
-  PREFERRED_TOKEN: TOKEN_ADDRESSES[NETWORKS.MAINNET.chainId].ETH,
+  PREFERRED_TOKEN: TOKEN_ADDRESSES[NETWORKS.SEPOLIA.chainId].ETH, // Use Sepolia as default
   PAGE_SIZE: 10,
   REFRESH_INTERVAL: 30000, // 30 seconds
 } as const

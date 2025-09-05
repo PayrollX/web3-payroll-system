@@ -11,16 +11,12 @@ const { ethers } = require('ethers')
  * NO tracking, NO personal data, ONLY essentials
  */
 
-// ENS service - configure for testnet if SEPOLIA_RPC_URL is provided
+// ENS service - force Sepolia for testing
 const ensService = new ENSService()
 
-// Switch to testnet if configured
-if (process.env.SEPOLIA_RPC_URL) {
-  console.log('🌐 Configuring ENS for Sepolia testnet')
-  ensService.switchNetwork('sepolia')
-} else {
-  console.log('🏠 Using local ENS simulation')
-}
+// Force Sepolia for testing
+console.log('🌐 Configuring ENS for Sepolia testnet')
+ensService.switchNetwork('sepolia')
 
 // Wallet validation
 const isValidWallet = (address) => {

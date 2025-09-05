@@ -319,7 +319,7 @@ export const useDashboardMetrics = () => {
     setMetrics(prev => ({ ...prev, loading: true, error: null }))
 
     try {
-      const chainId = publicClient.chain?.id || 31337 // Default to hardhat
+      const chainId = publicClient.chain?.id || 11155111 // Default to Sepolia
       const newMetrics = await dashboardService.getDashboardMetrics(
         address,
         publicClient,
@@ -341,7 +341,7 @@ export const useDashboardMetrics = () => {
     setMetrics(prev => ({ ...prev, loading: true, error: null }))
 
     try {
-      const chainId = publicClient.chain?.id || 31337
+      const chainId = publicClient.chain?.id || 11155111 // Default to Sepolia
       const newMetrics = await dashboardService.refreshDashboardMetrics(
         address,
         publicClient,

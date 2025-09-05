@@ -6,12 +6,12 @@
 # Environment Variables & Configuration
 # ===========================================
 # Environment files (contains sensitive data)
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-.env.*.local
+# .env
+# .env.local
+# .env.development.local
+# .env.test.local
+# .env.production.local
+# .env.*.local
 
 # Configuration files with secrets
 config/secrets.js
