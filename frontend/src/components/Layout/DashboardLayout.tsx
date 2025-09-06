@@ -29,7 +29,6 @@ import {
   Dashboard as DashboardIcon,
   People as PeopleIcon,
   Payment as PaymentIcon,
-  CardGiftcard as BonusIcon,
   Analytics as AnalyticsIcon,
   Dns as ENSIcon,
   AccountBalanceWallet as WalletIcon,
@@ -137,12 +136,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       text: 'Payroll',
       icon: <PaymentIcon />,
       path: '/payroll',
-      badge: null,
-    },
-    {
-      text: 'Bonuses',
-      icon: <BonusIcon />,
-      path: '/bonuses',
       badge: null,
     },
     {

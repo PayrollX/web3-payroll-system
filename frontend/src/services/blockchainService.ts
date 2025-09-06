@@ -491,27 +491,43 @@ export class BlockchainService {
    */
   async getContractBalance(tokenAddress: string): Promise<string> {
     try {
-      if (!this.provider || !this.currentNetwork) return '0'
+      if (!this.provider || !this.currentNetwork) {
+        console.log('❌ BlockchainService: No provider or network')
+        return '0'
+      }
 
       const contractInfo = this.getContractInfo()
-      if (!contractInfo) return '0'
+      if (!contractInfo) {
+        console.log('❌ BlockchainService: No contract info')
+        return '0'
+      }
+
+      console.log('🔍 BlockchainService: Getting balance for contract:', contractInfo.address)
+      console.log('🔍 BlockchainService: Token address:', tokenAddress)
+      console.log('🔍 BlockchainService: Current network:', this.currentNetwork)
 
       if (tokenAddress === TOKEN_ADDRESSES[this.currentNetwork as keyof typeof TOKEN_ADDRESSES].ETH) {
         // ETH balance
+        console.log('🔍 BlockchainService: Getting ETH balance for contract address:', contractInfo.address)
         const balance = await this.provider.getBalance(contractInfo.address)
-        return ethers.utils.formatEther(balance)
+        const formattedBalance = ethers.utils.formatEther(balance)
+        console.log('✅ BlockchainService: Contract ETH balance:', formattedBalance)
+        return formattedBalance
       } else {
         // ERC20 token balance
+        console.log('🔍 BlockchainService: Getting ERC20 token balance')
         const tokenContract = new ethers.Contract(
           tokenAddress,
           ['function balanceOf(address) view returns (uint256)'],
           this.provider
         )
         const balance = await tokenContract.balanceOf(contractInfo.address)
-        return ethers.utils.formatEther(balance)
+        const formattedBalance = ethers.utils.formatEther(balance)
+        console.log('✅ BlockchainService: Contract token balance:', formattedBalance)
+        return formattedBalance
       }
     } catch (error) {
-      console.error('Error getting contract balance:', error)
+      console.error('❌ BlockchainService: Error getting contract balance:', error)
       return '0'
     }
   }

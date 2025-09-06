@@ -43,7 +43,11 @@ import {
   AccordionSummary,
   AccordionDetails,
   LinearProgress,
+  Stack,
+  CardHeader,
+  Skeleton,
 } from '@mui/material'
+import { useTheme, alpha } from '@mui/material/styles'
 import {
   Payment as PaymentIcon,
   PlayArrow as PlayArrowIcon,
@@ -61,6 +65,13 @@ import {
   Person as PersonIcon,
   AttachMoney as AttachMoneyIcon,
   Security as SecurityIcon,
+  Send as SendIcon,
+  Group as GroupIcon,
+  Assessment as AssessmentIcon,
+  Timer as TimerIcon,
+  Cancel as CancelIcon,
+  People as PeopleIcon,
+  Search as SearchIcon,
 } from '@mui/icons-material'
 import { useAccount } from 'wagmi'
 import { useAppDispatch } from '../store/store'
@@ -74,11 +85,13 @@ import {
   TOKEN_INFO,
   SUCCESS_MESSAGES,
   ERROR_MESSAGES,
-  DEFAULTS
+  DEFAULTS,
+  CONTRACT_ADDRESSES
 } from '../contracts/constants'
 
 /**
  * Professional Payroll Processing page for Web3 Payroll System
+ * Features Dashboard-inspired design with production-ready data fetching
  * @author Dev Austin
  */
 
@@ -97,6 +110,7 @@ interface ProcessingStep {
 }
 
 const Payroll: React.FC = () => {
+  const theme = useTheme()
   const { address, isConnected } = useAccount()
   const dispatch = useAppDispatch()
   
@@ -115,15 +129,15 @@ const Payroll: React.FC = () => {
   
   // API hooks
   const { 
-    employees: apiEmployees, 
+    employees: apiEmployees = [], 
     totalEmployees, 
     activeEmployees,
     refreshEmployees 
   } = useEmployees()
   
   const { 
-    payments, 
-    pendingPayments, 
+    payments = [], 
+    pendingPayments = [], 
     loading: paymentsLoading, 
     processPayroll: processPayrollAPI,
     processIndividualPayment: processIndividualPaymentAPI,
@@ -142,6 +156,30 @@ const Payroll: React.FC = () => {
   const [loadingBalance, setLoadingBalance] = useState(false)
   const [processingType, setProcessingType] = useState<'batch' | 'individual'>('batch')
   const [selectedEmployee, setSelectedEmployee] = useState<string>('')
+  const [searchTerm, setSearchTerm] = useState('')
+
+  const employeesLoading = loadingEmployees // Alias for clarity
+
+  // Derived data
+  const filteredEmployees = (blockchainEmployees || []).filter((emp: any) => {
+    if (!searchTerm) return emp.isActive
+    const displayName = getEmployeeDisplayName(emp.walletAddress).toLowerCase()
+    return emp.isActive && (
+      displayName.includes(searchTerm.toLowerCase()) ||
+      emp.walletAddress.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  })
+
+  // compute pending employees array once for UI usage
+  const pendingEmployeesList = (() => {
+    if (!blockchainEmployees || !blockchainEmployees.length) return []
+    const now = Date.now()
+    return blockchainEmployees.filter((emp: any) => {
+      const lastPayment = (emp.lastPaymentTimestamp || 0) * 1000
+      const frequencyDays = emp.frequency === 0 ? 7 : emp.frequency === 1 ? 14 : emp.frequency === 2 ? 30 : 90
+      return (now - lastPayment) > (frequencyDays * 24 * 60 * 60 * 1000)
+    })
+  })()
 
   /**
    * Load contract balance
@@ -152,12 +190,16 @@ const Payroll: React.FC = () => {
     setLoadingBalance(true)
     try {
       const ethAddress = TOKEN_ADDRESSES[currentNetwork as keyof typeof TOKEN_ADDRESSES]?.ETH
+      console.log('🔍 Payroll: Loading contract balance for network:', currentNetwork)
+      console.log('🔍 Payroll: ETH address:', ethAddress)
+      
       if (ethAddress) {
         const balance = await getContractBalance(ethAddress)
+        console.log('✅ Payroll: Contract balance loaded:', balance, 'ETH')
         setContractBalance(balance)
       }
     } catch (error) {
-      console.error('Error loading contract balance:', error)
+      console.error('❌ Payroll: Error loading contract balance:', error)
     } finally {
       setLoadingBalance(false)
     }
@@ -171,10 +213,10 @@ const Payroll: React.FC = () => {
     let totalAmount = 0
     let totalGas = 0
 
-    for (const address of employeeAddresses) {
+    for (const addr of employeeAddresses) {
       try {
-        const amount = await calculatePaymentAmount(address)
-        const employee = (blockchainEmployees || []).find(emp => emp.walletAddress === address)
+        const amount = await calculatePaymentAmount(addr)
+        const employee = (blockchainEmployees || []).find((emp: any) => emp.walletAddress === addr)
         
         if (employee) {
           const tokenAddress = employee.preferredToken
@@ -193,7 +235,7 @@ const Payroll: React.FC = () => {
           totalGas += DEFAULTS.GAS_LIMIT
         }
       } catch (error) {
-        console.error(`Error calculating payment for ${address}:`, error)
+        console.error(`Error calculating payment for ${addr}:`, error)
       }
     }
 
@@ -214,7 +256,7 @@ const Payroll: React.FC = () => {
     const networkTokens = TOKEN_ADDRESSES[currentNetwork as keyof typeof TOKEN_ADDRESSES]
     if (!networkTokens) return 'UNKNOWN'
     
-    const token = Object.values(TOKEN_INFO).find(t => {
+    const token = Object.values(TOKEN_INFO).find((t: any) => {
       const tokenKey = t.symbol as keyof typeof networkTokens
       return networkTokens[tokenKey] === tokenAddress
     })
@@ -228,6 +270,61 @@ const Payroll: React.FC = () => {
     const num = parseFloat(amount)
     return isNaN(num) ? '0.0000' : num.toFixed(decimals)
   }
+
+  // MetricCard component (kept as you had it)
+  const MetricCard: React.FC<{
+    title: string
+    value: string | number
+    icon: React.ReactNode
+    color?: 'primary' | 'secondary' | 'success' | 'warning' | 'error'
+    subtitle?: string
+    loading?: boolean
+  }> = ({ title, value, icon, color = 'primary', subtitle, loading = false }) => (
+    <Card
+      sx={{
+        background: `linear-gradient(135deg, ${alpha(theme.palette[color].main, 0.05)} 0%, ${alpha(theme.palette[color].main, 0.02)} 100%)`,
+        border: `1px solid ${alpha(theme.palette[color].main, 0.12)}`,
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        '&:hover': {
+          transform: 'translateY(-4px)',
+          boxShadow: `0 8px 25px ${alpha(theme.palette[color].main, 0.15)}`,
+          borderColor: alpha(theme.palette[color].main, 0.25),
+        }
+      }}
+    >
+      <CardContent sx={{ p: 3 }}>
+        <Stack direction="row" alignItems="center" spacing={2}>
+          <Avatar
+            sx={{
+              bgcolor: alpha(theme.palette[color].main, 0.1),
+              color: theme.palette[color].main,
+              width: 48,
+              height: 48,
+            }}
+          >
+            {icon}
+          </Avatar>
+          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+            <Typography variant="body2" color="text.secondary" noWrap>
+              {title}
+            </Typography>
+            {loading ? (
+              <Skeleton variant="text" width="60%" height={32} />
+            ) : (
+              <Typography variant="h5" component="div" fontWeight={600} noWrap>
+                {value}
+              </Typography>
+            )}
+            {subtitle && (
+              <Typography variant="caption" color="text.secondary" noWrap>
+                {subtitle}
+              </Typography>
+            )}
+          </Box>
+        </Stack>
+      </CardContent>
+    </Card>
+  )
 
   /**
    * Handle employee selection
@@ -245,9 +342,9 @@ const Payroll: React.FC = () => {
    */
   const handleSelectAll = (selected: boolean) => {
     if (selected) {
-      const allAddresses = blockchainEmployees
-        .filter(emp => emp.isActive)
-        .map(emp => emp.walletAddress)
+      const allAddresses = (blockchainEmployees || [])
+        .filter((emp: any) => emp.isActive)
+        .map((emp: any) => emp.walletAddress)
       setSelectedEmployees(allAddresses)
     } else {
       setSelectedEmployees([])
@@ -358,7 +455,7 @@ const Payroll: React.FC = () => {
       ))
 
       const apiResult = await processPayrollAPI(selectedEmployees.map(addr => {
-        const employee = apiEmployees.find(emp => emp.payrollSettings.walletAddress === addr)
+        const employee = (apiEmployees || []).find((emp: any) => emp.payrollSettings?.walletAddress === addr)
         return employee?._id || ''
       }).filter(id => id))
 
@@ -397,14 +494,14 @@ const Payroll: React.FC = () => {
         index === currentStepIndex ? { 
           ...step, 
           status: 'error', 
-          error: error.message 
+          error: error?.message || String(error)
         } : step
       ))
 
       dispatch(addNotification({
         type: 'error',
         title: 'Payroll Processing Failed',
-        message: error.message || ERROR_MESSAGES.NETWORK_ERROR,
+        message: error?.message || ERROR_MESSAGES.NETWORK_ERROR,
       }))
     } finally {
       setIsProcessing(false)
@@ -436,7 +533,7 @@ const Payroll: React.FC = () => {
       }
 
       // Update database
-      const employee = apiEmployees.find(emp => emp.payrollSettings.walletAddress === selectedEmployee)
+      const employee = (apiEmployees || []).find((emp: any) => emp.payrollSettings?.walletAddress === selectedEmployee)
       if (employee?._id) {
         await processIndividualPaymentAPI(employee._id)
       }
@@ -458,7 +555,7 @@ const Payroll: React.FC = () => {
       dispatch(addNotification({
         type: 'error',
         title: 'Payment Failed',
-        message: error.message || ERROR_MESSAGES.NETWORK_ERROR,
+        message: error?.message || ERROR_MESSAGES.NETWORK_ERROR,
       }))
     } finally {
       setIsProcessing(false)
@@ -467,31 +564,18 @@ const Payroll: React.FC = () => {
   }
 
   /**
-   * Get pending employees
-   */
-  const getPendingEmployees = () => {
-    if (!blockchainEmployees || !blockchainEmployees.length) return []
-    
-    const now = Date.now()
-    return blockchainEmployees.filter(emp => {
-      const lastPayment = emp.lastPaymentTimestamp * 1000
-      const frequencyDays = emp.frequency === 0 ? 7 : emp.frequency === 1 ? 14 : emp.frequency === 2 ? 30 : 90
-      return (now - lastPayment) > (frequencyDays * 24 * 60 * 60 * 1000)
-    })
-  }
-
-  /**
    * Get employee display name
    */
   const getEmployeeDisplayName = (identifier: string) => {
+    if (!identifier) return 'Unknown'
     // Check if it's a wallet address (starts with 0x)
     if (identifier.startsWith('0x')) {
-      const apiEmployee = apiEmployees.find(emp => emp.payrollSettings.walletAddress === identifier)
-      return apiEmployee?.personalInfo.name || `${identifier.slice(0, 6)}...${identifier.slice(-4)}`
+      const apiEmployee = (apiEmployees || []).find((emp: any) => emp.payrollSettings?.walletAddress === identifier)
+      return apiEmployee?.personalInfo?.name || `${identifier.slice(0, 6)}...${identifier.slice(-4)}`
     }
     // Otherwise, it's an employee ID
-    const apiEmployee = apiEmployees.find(emp => emp._id === identifier)
-    return apiEmployee?.personalInfo.name || 'Unknown Employee'
+    const apiEmployee = (apiEmployees || []).find((emp: any) => emp._id === identifier)
+    return apiEmployee?.personalInfo?.name || 'Unknown Employee'
   }
 
   // Load contract balance on mount
@@ -527,173 +611,236 @@ const Payroll: React.FC = () => {
     )
   }
 
-  const pendingEmployees = getPendingEmployees() || []
-  const allSelected = selectedEmployees.length === pendingEmployees.length && pendingEmployees.length > 0
-
   return (
     <Box sx={{ p: 3 }}>
-      {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Box>
-          <Typography variant="h4" gutterBottom>
-            Payroll Processing
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Process salary payments for your employees
-          </Typography>
-        </Box>
-        <Box sx={{ display: 'flex', gap: 2 }}>
-          <Tooltip title="Refresh Data">
-            <IconButton onClick={() => { refreshData(); refreshEmployees(); refreshPayments(); loadContractBalance(); }}>
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
-          <Button
-            variant="contained"
-            startIcon={<PaymentIcon />}
-            onClick={handleBatchPayroll}
-            disabled={isProcessing || selectedEmployees.length === 0}
-          >
-            Process Selected ({selectedEmployees.length})
-          </Button>
-        </Box>
+      {/* Professional Header with Gradient */}
+      <Box sx={{ 
+        mb: 4,
+        background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.1)} 0%, ${alpha(theme.palette.secondary.main, 0.05)} 100%)`,
+        borderRadius: 2,
+        p: 3,
+        border: `1px solid ${alpha(theme.palette.primary.main, 0.12)}`,
+      }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center">
+          <Box>
+            <Typography variant="h4" fontWeight={700} gutterBottom>
+              Payroll Processing
+            </Typography>
+            <Typography variant="body1" color="text.secondary">
+              Process salary payments for your employees with blockchain security
+            </Typography>
+          </Box>
+          <Stack direction="row" spacing={2}>
+            <Tooltip title="Refresh Data">
+              <IconButton 
+                onClick={() => { 
+                  console.log('🔄 Payroll: Manual refresh triggered')
+                  refreshData(); 
+                  refreshEmployees(); 
+                  refreshPayments(); 
+                  loadContractBalance(); 
+                }}
+                sx={{
+                  bgcolor: alpha(theme.palette.primary.main, 0.1),
+                  '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) }
+                }}
+              >
+                <RefreshIcon />
+              </IconButton>
+            </Tooltip>
+            <Button
+              variant="contained"
+              startIcon={<PaymentIcon />}
+              onClick={handleBatchPayroll}
+              disabled={isProcessing || selectedEmployees.length === 0}
+              size="large"
+              sx={{
+                borderRadius: 2,
+                textTransform: 'none',
+                fontWeight: 600,
+                px: 3,
+              }}
+            >
+              Process Selected ({selectedEmployees.length})
+            </Button>
+          </Stack>
+        </Stack>
       </Box>
 
-      {/* Contract Balance Alert */}
-      <Alert 
-        severity={parseFloat(contractBalance) < 1 ? 'warning' : 'info'} 
-        icon={<AccountBalanceIcon />}
-        sx={{ mb: 3 }}
-      >
-        Contract Balance: {formatCurrency(contractBalance)} ETH
-        {parseFloat(contractBalance) < 1 && (
-          <Typography variant="body2" sx={{ mt: 1 }}>
-            Low balance warning: Consider adding more funds to the contract
-          </Typography>
-        )}
-      </Alert>
-
-      {/* Stats Cards */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={3}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <PersonIcon color="primary" sx={{ mr: 2 }} />
-                <Box>
-                  <Typography variant="h4" color="primary">
-                    {(blockchainEmployees || []).length}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Total Employees
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
+      {/* Professional Metrics Cards */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} sm={6} md={3}>
+          <MetricCard
+            title="Active Employees"
+            value={filteredEmployees.length}
+            icon={<PeopleIcon />}
+            color="primary"
+            subtitle="Ready for payment"
+            loading={employeesLoading}
+          />
         </Grid>
-        <Grid item xs={12} sm={3}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <ScheduleIcon color="warning" sx={{ mr: 2 }} />
-                <Box>
-                  <Typography variant="h4" color="warning.main">
-                    {pendingEmployees.length}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Pending Payments
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
+        <Grid item xs={12} sm={6} md={3}>
+          <MetricCard
+            title="Selected for Payment"
+            value={selectedEmployees.length}
+            icon={<CheckCircleIcon />}
+            color="secondary"
+            subtitle="Employees in batch"
+          />
         </Grid>
-        <Grid item xs={12} sm={3}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <AttachMoneyIcon color="success" sx={{ mr: 2 }} />
-                <Box>
-                  <Typography variant="h4" color="success.main">
-                    {payments?.length || 0}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Total Payments
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
+        <Grid item xs={12} sm={6} md={3}>
+          <MetricCard
+            title="Contract Balance"
+            value={`${formatCurrency(contractBalance)} ETH`}
+            icon={<AccountBalanceIcon />}
+            color={parseFloat(contractBalance || '0') < 1 ? 'warning' : 'success'}
+            subtitle={parseFloat(contractBalance || '0') < 1 ? 'Low balance' : 'Sufficient funds'}
+            loading={loadingBalance}
+          />
         </Grid>
-        <Grid item xs={12} sm={3}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <TrendingUpIcon color="info" sx={{ mr: 2 }} />
-                <Box>
-                  <Typography variant="h4" color="info.main">
-                    {formatCurrency(contractBalance)}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Available Balance
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
+        <Grid item xs={12} sm={6} md={3}>
+          <MetricCard
+            title="Pending Payments"
+            value={pendingEmployeesList.length || 0}
+            icon={<ScheduleIcon />}
+            color="warning"
+            subtitle="Awaiting processing"
+          />
         </Grid>
       </Grid>
 
-      {/* Pending Payments */}
-      <Card sx={{ mb: 3 }}>
+      {/* Contract Balance Alert */}
+      {parseFloat(contractBalance || '0') < 1 && (
+        <Alert 
+          severity="warning"
+          icon={<AccountBalanceIcon />}
+          sx={{ 
+            mb: 3,
+            borderRadius: 2,
+            '& .MuiAlert-message': { fontWeight: 500 }
+          }}
+        >
+          <Typography variant="body1" fontWeight={600}>
+            Low Contract Balance Warning
+          </Typography>
+          <Typography variant="body2" sx={{ mt: 0.5 }}>
+            Current balance: {formatCurrency(contractBalance)} ETH. Consider adding more funds to ensure successful payments.
+          </Typography>
+          <Typography variant="body2" sx={{ mt: 0.5, fontFamily: 'monospace', fontSize: '0.75rem' }}>
+            Contract: {currentNetwork ? (CONTRACT_ADDRESSES[currentNetwork as keyof typeof CONTRACT_ADDRESSES]?.PayrollManager || 'Unknown') : 'Not connected'}
+          </Typography>
+        </Alert>
+      )}
+
+      {/* Search and Filter Controls */}
+      <Card sx={{ mb: 3, borderRadius: 2 }}>
+        <CardHeader
+          title="Employee Selection"
+          subheader="Select employees for payroll processing"
+          sx={{
+            background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${alpha(theme.palette.primary.main, 0.02)} 100%)`,
+          }}
+        />
         <CardContent>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography variant="h6">
-              Pending Payments
-            </Typography>
+          <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
+            <TextField
+              placeholder="Search employees..."
+              variant="outlined"
+              size="small"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              InputProps={{
+                startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
+              }}
+              sx={{ flexGrow: 1, maxWidth: 400 }}
+            />
             <FormControlLabel
               control={
                 <Checkbox
-                  checked={allSelected}
-                  indeterminate={selectedEmployees.length > 0 && selectedEmployees.length < pendingEmployees.length}
+                  checked={selectedEmployees.length === filteredEmployees.length && filteredEmployees.length > 0}
+                  indeterminate={selectedEmployees.length > 0 && selectedEmployees.length < filteredEmployees.length}
                   onChange={(e) => handleSelectAll(e.target.checked)}
                 />
               }
               label="Select All"
             />
-          </Box>
-          
-          {loadingEmployees ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      {/* Employee List with Professional Design */}
+      <Card sx={{ borderRadius: 2, mb: 3 }}>
+        <CardHeader
+          title={
+            <Stack direction="row" alignItems="center" spacing={2}>
+              <PeopleIcon color="primary" />
+              <Typography variant="h6" fontWeight={600}>
+                Employees ({filteredEmployees.length})
+              </Typography>
+            </Stack>
+          }
+          subheader="Select employees to include in payroll batch"
+          sx={{
+            background: `linear-gradient(135deg, ${alpha(theme.palette.secondary.main, 0.05)} 0%, ${alpha(theme.palette.secondary.main, 0.02)} 100%)`,
+          }}
+        />
+        <CardContent sx={{ p: 0 }}>
+          {employeesLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
               <CircularProgress />
             </Box>
-          ) : pendingEmployees.length === 0 ? (
-            <Alert severity="success">
-              No pending payments. All employees are up to date!
+          ) : filteredEmployees.length === 0 ? (
+            <Alert 
+              severity="info" 
+              sx={{ m: 3, borderRadius: 2 }}
+              icon={<InfoIcon />}
+            >
+              <Typography variant="body1" fontWeight={600}>
+                No employees found
+              </Typography>
+              <Typography variant="body2">
+                {searchTerm ? 'Try adjusting your search terms.' : 'Add employees to start processing payroll.'}
+              </Typography>
             </Alert>
           ) : (
-            <TableContainer component={Paper} variant="outlined">
+            <TableContainer>
               <Table>
                 <TableHead>
-                  <TableRow>
-                    <TableCell padding="checkbox">Select</TableCell>
-                    <TableCell>Employee</TableCell>
-                    <TableCell>Position</TableCell>
-                    <TableCell>Salary</TableCell>
-                    <TableCell>Last Payment</TableCell>
-                    <TableCell>Days Overdue</TableCell>
-                    <TableCell>Actions</TableCell>
+                  <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.02) }}>
+                    <TableCell padding="checkbox">
+                      <Checkbox
+                        checked={selectedEmployees.length === filteredEmployees.length && filteredEmployees.length > 0}
+                        indeterminate={selectedEmployees.length > 0 && selectedEmployees.length < filteredEmployees.length}
+                        onChange={(e) => handleSelectAll(e.target.checked)}
+                      />
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Employee</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Salary</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Payment Status</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Last Payment</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {pendingEmployees.map((employee) => {
+                  {filteredEmployees.map((employee: any) => {
                     const isSelected = selectedEmployees.includes(employee.walletAddress)
-                    const lastPayment = new Date(employee.lastPaymentTimestamp * 1000)
-                    const daysOverdue = Math.floor((Date.now() - employee.lastPaymentTimestamp * 1000) / (24 * 60 * 60 * 1000))
+                    const lastPayment = new Date((employee.lastPaymentTimestamp || 0) * 1000)
+                    const daysOverdue = Math.floor((Date.now() - ((employee.lastPaymentTimestamp || 0) * 1000)) / (24 * 60 * 60 * 1000))
+                    const isPending = daysOverdue > 0
                     
                     return (
-                      <TableRow key={employee.walletAddress}>
+                      <TableRow 
+                        key={employee.walletAddress}
+                        hover
+                        sx={{
+                          '&:hover': {
+                            bgcolor: alpha(theme.palette.primary.main, 0.02),
+                          },
+                          ...(isSelected && {
+                            bgcolor: alpha(theme.palette.primary.main, 0.04),
+                          })
+                        }}
+                      >
                         <TableCell padding="checkbox">
                           <Checkbox
                             checked={isSelected}
@@ -701,44 +848,87 @@ const Payroll: React.FC = () => {
                           />
                         </TableCell>
                         <TableCell>
-                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                            <Avatar sx={{ mr: 2, bgcolor: 'primary.main' }}>
+                          <Stack direction="row" alignItems="center" spacing={2}>
+                            <Avatar 
+                              sx={{ 
+                                width: 40, 
+                                height: 40,
+                                bgcolor: theme.palette.primary.main,
+                                fontWeight: 600
+                              }}
+                            >
                               {getEmployeeDisplayName(employee.walletAddress).charAt(0).toUpperCase()}
                             </Avatar>
                             <Box>
-                              <Typography variant="body1" fontWeight="medium">
+                              <Typography variant="body1" fontWeight={500}>
                                 {getEmployeeDisplayName(employee.walletAddress)}
                               </Typography>
-                              <Typography variant="body2" color="text.secondary" fontFamily="monospace">
+                              <Typography 
+                                variant="body2" 
+                                color="text.secondary" 
+                                fontFamily="monospace"
+                                sx={{ fontSize: '0.75rem' }}
+                              >
                                 {employee.walletAddress.slice(0, 6)}...{employee.walletAddress.slice(-4)}
                               </Typography>
                             </Box>
-                          </Box>
-                        </TableCell>
-                        <TableCell>{employee.position}</TableCell>
-                        <TableCell>
-                          {formatCurrency(employee.salaryAmount)} {getTokenSymbol(employee.preferredToken)}
+                          </Stack>
                         </TableCell>
                         <TableCell>
-                          {lastPayment.toLocaleDateString()}
+                          <Stack>
+                            <Typography variant="body1" fontWeight={500}>
+                              {formatCurrency(employee.salaryAmount?.toString?.() ?? '0')} {getTokenSymbol(employee.preferredToken)}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {employee.paymentFrequency}
+                            </Typography>
+                          </Stack>
                         </TableCell>
                         <TableCell>
                           <Chip
-                            label={`${daysOverdue} days`}
-                            color={daysOverdue > 30 ? 'error' : daysOverdue > 7 ? 'warning' : 'default'}
+                            label={isPending ? `${daysOverdue} days overdue` : 'Current'}
+                            color={isPending ? (daysOverdue > 30 ? 'error' : 'warning') : 'success'}
                             size="small"
+                            variant={isPending ? 'filled' : 'outlined'}
+                            sx={{ fontWeight: 500 }}
                           />
                         </TableCell>
                         <TableCell>
-                          <Tooltip title="Process Individual Payment">
-                            <IconButton
-                              size="small"
-                              onClick={() => handleIndividualPayment(employee.walletAddress)}
-                              disabled={isProcessing}
-                            >
-                              <PlayArrowIcon />
-                            </IconButton>
-                          </Tooltip>
+                          <Typography variant="body2">
+                            {lastPayment.toLocaleDateString()}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Stack direction="row" spacing={1}>
+                            <Tooltip title="Process Individual Payment">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleIndividualPayment(employee.walletAddress)}
+                                disabled={isProcessing}
+                                sx={{
+                                  color: theme.palette.success.main,
+                                  '&:hover': {
+                                    bgcolor: alpha(theme.palette.success.main, 0.1)
+                                  }
+                                }}
+                              >
+                                <PlayArrowIcon />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="View Details">
+                              <IconButton
+                                size="small"
+                                sx={{
+                                  color: theme.palette.primary.main,
+                                  '&:hover': {
+                                    bgcolor: alpha(theme.palette.primary.main, 0.1)
+                                  }
+                                }}
+                              >
+                                <VisibilityIcon />
+                              </IconButton>
+                            </Tooltip>
+                          </Stack>
                         </TableCell>
                       </TableRow>
                     )
@@ -767,14 +957,14 @@ const Payroll: React.FC = () => {
             </Alert>
           ) : (
             <List>
-              {(payments || []).slice(0, 5).map((payment, index) => (
+              {(payments || []).slice(0, 5).map((payment: any, index: number) => (
                 <React.Fragment key={payment._id}>
                   <ListItem>
                     <ListItemIcon>
                       <CheckCircleIcon color="success" />
                     </ListItemIcon>
                     <ListItemText
-                      primary={`${getEmployeeDisplayName(payment.employeeId)} - ${formatCurrency(payment.amount)} ${payment.tokenSymbol}`}
+                      primary={`${getEmployeeDisplayName(payment.employeeId)} - ${formatCurrency(payment.amount?.toString?.() ?? '0')} ${payment.tokenSymbol}`}
                       secondary={`${new Date(payment.paymentDate).toLocaleDateString()} • ${payment.transactionHash}`}
                     />
                     <Chip

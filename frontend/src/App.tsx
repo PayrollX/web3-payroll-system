@@ -26,7 +26,6 @@ import CompanyRegistration from './pages/CompanyRegistration'
 import Dashboard from './pages/Dashboard'
 import Employees from './pages/Employees'
 import Payroll from './pages/Payroll'
-import Bonuses from './pages/Bonuses'
 import ENSManagement from './pages/ENSManagement'
 import Analytics from './pages/Analytics'
 import Settings from './pages/Settings'
@@ -222,16 +221,6 @@ function App() {
                       <ProtectedRoute>
                         <DashboardLayout>
                           <Payroll />
-                        </DashboardLayout>
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/bonuses"
-                    element={
-                      <ProtectedRoute>
-                        <DashboardLayout>
-                          <Bonuses />
                         </DashboardLayout>
                       </ProtectedRoute>
                     }
