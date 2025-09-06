@@ -50,6 +50,8 @@ import {
   Search as SearchIcon,
   FilterList as FilterIcon,
   Download as DownloadIcon,
+  Upload as UploadIcon,
+  CloudUpload as CloudUploadIcon,
   People as PeopleIcon,
   TrendingUp as TrendingUpIcon,
   Work as WorkIcon,
@@ -59,6 +61,7 @@ import {
   Launch as LaunchIcon,
   Info as InfoIcon,
   Error as ErrorIcon,
+  GetApp as GetAppIcon,
 } from '@mui/icons-material'
 import { useAccount } from 'wagmi'
 import { useAppDispatch } from '../store/store'
@@ -127,6 +130,18 @@ const EmployeesNew: React.FC = () => {
     withholdings: 0,
     taxExempt: false,
   })
+
+  // Bulk Import State
+  const [bulkImportOpen, setBulkImportOpen] = useState(false)
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+  const [parsedData, setParsedData] = useState<any[]>([])
+  const [importing, setImporting] = useState(false)
+  const [importProgress, setImportProgress] = useState(0)
+  const [importResults, setImportResults] = useState<{
+    successful: number
+    failed: number
+    errors: string[]
+  }>({ successful: 0, failed: 0, errors: [] })
 
   // Helper functions
   const getTokenSymbol = (tokenAddress: string) => {
@@ -321,6 +336,307 @@ const EmployeesNew: React.FC = () => {
     }
   }
 
+  // Bulk Import Functions
+  const handleBulkImportOpen = () => {
+    setBulkImportOpen(true)
+  }
+
+  const handleBulkImportClose = () => {
+    setBulkImportOpen(false)
+    setUploadedFile(null)
+    setParsedData([])
+    setImportResults({ successful: 0, failed: 0, errors: [] })
+    setImportProgress(0)
+  }
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    const validTypes = [
+      'text/csv',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      '.csv',
+      '.xls',
+      '.xlsx'
+    ]
+    
+    const fileExtension = file.name.toLowerCase().split('.').pop()
+    const isValidType = validTypes.some(type => 
+      file.type === type || fileExtension === type.replace('.', '')
+    )
+
+    if (!isValidType) {
+      dispatch(addNotification({
+        type: 'error',
+        title: 'Invalid File Type',
+        message: 'Please upload a CSV or Excel file (.csv, .xls, .xlsx).',
+      }))
+      return
+    }
+
+    setUploadedFile(file)
+    parseFile(file)
+  }
+
+  const parseFile = async (file: File) => {
+    try {
+      const fileExtension = file.name.toLowerCase().split('.').pop()
+      
+      if (fileExtension === 'csv') {
+        parseCSV(file)
+      } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
+        parseExcel(file)
+      }
+    } catch (error) {
+      dispatch(addNotification({
+        type: 'error',
+        title: 'File Parse Error',
+        message: 'Failed to parse the uploaded file. Please check the format.',
+      }))
+    }
+  }
+
+  const parseCSV = async (file: File) => {
+    const text = await file.text()
+    const lines = text.split('\n').filter(line => line.trim())
+    
+    if (lines.length < 2) {
+      dispatch(addNotification({
+        type: 'error',
+        title: 'Invalid CSV',
+        message: 'CSV file must contain headers and at least one data row.',
+      }))
+      return
+    }
+
+    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''))
+    const data = []
+
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''))
+      const row: any = {}
+      
+      headers.forEach((header, index) => {
+        row[header.toLowerCase().replace(/\s+/g, '_')] = values[index] || ''
+      })
+      
+      if (row.name && row.email) { // Basic validation
+        data.push(row)
+      }
+    }
+
+    setParsedData(data)
+    
+    dispatch(addNotification({
+      type: 'success',
+      title: 'File Parsed',
+      message: `Successfully parsed ${data.length} employee records from CSV.`,
+    }))
+  }
+
+  const parseExcel = async (file: File) => {
+    // For Excel parsing, we'd typically use a library like xlsx
+    // For now, we'll show an instruction to convert to CSV
+    dispatch(addNotification({
+      type: 'info',
+      title: 'Excel Support',
+      message: 'Excel files detected. For now, please convert to CSV format and re-upload.',
+    }))
+  }
+
+  const handleBulkImport = async () => {
+    if (parsedData.length === 0) {
+      dispatch(addNotification({
+        type: 'error',
+        title: 'No Data',
+        message: 'Please upload and parse a file first.',
+      }))
+      return
+    }
+
+    setImporting(true)
+    setImportProgress(0)
+    
+    const results = { successful: 0, failed: 0, errors: [] as string[] }
+
+    for (let i = 0; i < parsedData.length; i++) {
+      const row = parsedData[i]
+      
+      try {
+        // Validate required fields
+        if (!row.name || !row.email || !row.wallet_address || !row.position || !row.department || !row.salary_amount) {
+          results.failed++
+          results.errors.push(`Row ${i + 2}: Missing required fields`)
+          continue
+        }
+
+        // Validate email and wallet address
+        if (!isValidEmail(row.email)) {
+          results.failed++
+          results.errors.push(`Row ${i + 2}: Invalid email format`)
+          continue
+        }
+
+        if (!isValidWalletAddress(row.wallet_address)) {
+          results.failed++
+          results.errors.push(`Row ${i + 2}: Invalid wallet address format`)
+          continue
+        }
+
+        // Prepare employee data
+        const employeeData = {
+          personalInfo: {
+            name: row.name,
+            email: row.email,
+            phone: row.phone || '',
+          },
+          employmentDetails: {
+            startDate: row.start_date || new Date().toISOString().split('T')[0],
+            position: row.position,
+            department: row.department,
+            employmentType: (row.employment_type || 'full-time') as 'full-time' | 'part-time' | 'contractor',
+            isActive: row.is_active !== 'false',
+          },
+          payrollSettings: {
+            walletAddress: row.wallet_address,
+            salaryAmount: row.salary_amount,
+            paymentFrequency: (row.payment_frequency || 'MONTHLY') as 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'ONE_TIME',
+            preferredToken: row.preferred_token || 'ETH',
+            lastPaymentTimestamp: 0,
+          },
+          ensDetails: {
+            subdomain: row.subdomain || row.name.toLowerCase().replace(/\s+/g, ''),
+            fullDomain: `${row.subdomain || row.name.toLowerCase().replace(/\s+/g, '')}.company.eth`,
+            ensNode: '',
+          },
+          taxInformation: {
+            withholdings: parseFloat(row.withholdings) || 0,
+            taxExempt: row.tax_exempt === 'true',
+          },
+        }
+
+        const success = await createEmployee(employeeData)
+        
+        if (success) {
+          results.successful++
+        } else {
+          results.failed++
+          results.errors.push(`Row ${i + 2}: Failed to create employee`)
+        }
+      } catch (error) {
+        results.failed++
+        results.errors.push(`Row ${i + 2}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
+
+      setImportProgress(((i + 1) / parsedData.length) * 100)
+    }
+
+    setImportResults(results)
+    setImporting(false)
+
+    dispatch(addNotification({
+      type: results.successful > 0 ? 'success' : 'error',
+      title: 'Bulk Import Complete',
+      message: `Successfully imported ${results.successful} employees. ${results.failed} failed.`,
+    }))
+  }
+
+  const downloadTemplate = () => {
+    const headers = [
+      'name',
+      'email', 
+      'phone',
+      'position',
+      'department',
+      'employment_type',
+      'start_date',
+      'wallet_address',
+      'salary_amount',
+      'payment_frequency',
+      'preferred_token',
+      'subdomain',
+      'withholdings',
+      'tax_exempt',
+      'is_active'
+    ]
+    
+    const sampleData = [
+      [
+        'John Doe',
+        'john.doe@company.com',
+        '+1234567890',
+        'Software Engineer',
+        'Engineering',
+        'full-time',
+        '2024-01-01',
+        '0x1234567890123456789012345678901234567890',
+        '75000',
+        'MONTHLY',
+        'ETH',
+        'john-doe',
+        '0',
+        'false',
+        'true'
+      ],
+      [
+        'Jane Smith',
+        'jane.smith@company.com',
+        '+1234567891',
+        'Product Manager',
+        'Product',
+        'full-time',
+        '2024-01-15',
+        '0x2234567890123456789012345678901234567890',
+        '85000',
+        'MONTHLY',
+        'USDC',
+        'jane-smith',
+        '0',
+        'false',
+        'true'
+      ],
+      [
+        'Bob Johnson',
+        'bob.johnson@company.com',
+        '+1234567892',
+        'Designer',
+        'Design',
+        'part-time',
+        '2024-02-01',
+        '0x3234567890123456789012345678901234567890',
+        '50000',
+        'BIWEEKLY',
+        'ETH',
+        'bob-johnson',
+        '0',
+        'false',
+        'true'
+      ]
+    ]
+
+    const csvContent = [
+      headers.join(','),
+      ...sampleData.map(row => row.join(','))
+    ].join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'employee_bulk_import_template.csv'
+    a.click()
+    window.URL.revokeObjectURL(url)
+
+    dispatch(addNotification({
+      type: 'success',
+      title: 'Template Downloaded',
+      message: 'Employee import template has been downloaded. Fill it out and upload to bulk import employees.',
+    }))
+  }
+
   if (!isConnected) {
     return (
       <Box sx={{ 
@@ -475,6 +791,23 @@ const EmployeesNew: React.FC = () => {
               }}
             >
               Add Employee
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<CloudUploadIcon />}
+              disabled={!isOwner}
+              onClick={handleBulkImportOpen}
+              sx={{ 
+                color: 'white',
+                borderColor: 'rgba(255,255,255,0.3)',
+                '&:hover': { 
+                  borderColor: 'rgba(255,255,255,0.5)',
+                  bgcolor: 'rgba(255,255,255,0.1)'
+                },
+                borderRadius: 2
+              }}
+            >
+              Bulk Import
             </Button>
           </Stack>
         </Box>
@@ -1091,6 +1424,244 @@ const EmployeesNew: React.FC = () => {
             sx={{ ml: 2 }}
           >
             {submitting ? 'Adding Employee...' : 'Add Employee'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Bulk Import Dialog */}
+      <Dialog 
+        open={bulkImportOpen} 
+        onClose={handleBulkImportClose}
+        maxWidth="lg"
+        fullWidth
+        PaperProps={{
+          sx: { borderRadius: 3 }
+        }}
+      >
+        <DialogTitle sx={{ pb: 1 }}>
+          <Stack direction="row" alignItems="center" spacing={2}>
+            <Avatar sx={{ bgcolor: 'secondary.main' }}>
+              <CloudUploadIcon />
+            </Avatar>
+            <Box>
+              <Typography variant="h6" fontWeight={600}>
+                Bulk Import Employees
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Upload CSV or Excel files to create multiple employee accounts
+              </Typography>
+            </Box>
+          </Stack>
+        </DialogTitle>
+        
+        <DialogContent sx={{ pt: 2 }}>
+          <Grid container spacing={3}>
+            {/* File Upload Section */}
+            <Grid item xs={12}>
+              <Card sx={{ p: 3, mb: 3, borderRadius: 2, border: '2px dashed', borderColor: 'primary.main' }}>
+                <Stack spacing={2} alignItems="center">
+                  <CloudUploadIcon sx={{ fontSize: 48, color: 'primary.main' }} />
+                  <Typography variant="h6" textAlign="center">
+                    Upload Employee Data File
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" textAlign="center">
+                    Support for CSV and Excel files (.csv, .xls, .xlsx)
+                  </Typography>
+                  
+                  <input
+                    accept=".csv,.xls,.xlsx"
+                    style={{ display: 'none' }}
+                    id="bulk-import-file"
+                    type="file"
+                    onChange={handleFileUpload}
+                  />
+                  <label htmlFor="bulk-import-file">
+                    <Button
+                      variant="contained"
+                      component="span"
+                      startIcon={<UploadIcon />}
+                      size="large"
+                      sx={{ mb: 1 }}
+                    >
+                      Choose File
+                    </Button>
+                  </label>
+                  
+                  <Button
+                    variant="outlined"
+                    startIcon={<GetAppIcon />}
+                    onClick={downloadTemplate}
+                    size="small"
+                  >
+                    Download Template
+                  </Button>
+                  
+                  {uploadedFile && (
+                    <Alert severity="success" sx={{ mt: 2 }}>
+                      <Typography variant="body2">
+                        <strong>File selected:</strong> {uploadedFile.name} ({(uploadedFile.size / 1024).toFixed(1)} KB)
+                      </Typography>
+                    </Alert>
+                  )}
+                </Stack>
+              </Card>
+            </Grid>
+
+            {/* Preview Section */}
+            {parsedData.length > 0 && (
+              <Grid item xs={12}>
+                <Typography variant="h6" gutterBottom color="primary.main" fontWeight={600}>
+                  Preview Data ({parsedData.length} records)
+                </Typography>
+                <Card sx={{ maxHeight: 300, overflow: 'auto', borderRadius: 2 }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: 'primary.main' }}>
+                        <TableCell sx={{ color: 'white', fontWeight: 600 }}>Name</TableCell>
+                        <TableCell sx={{ color: 'white', fontWeight: 600 }}>Email</TableCell>
+                        <TableCell sx={{ color: 'white', fontWeight: 600 }}>Position</TableCell>
+                        <TableCell sx={{ color: 'white', fontWeight: 600 }}>Department</TableCell>
+                        <TableCell sx={{ color: 'white', fontWeight: 600 }}>Salary</TableCell>
+                        <TableCell sx={{ color: 'white', fontWeight: 600 }}>Wallet</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {parsedData.slice(0, 10).map((row, index) => (
+                        <TableRow key={index} hover>
+                          <TableCell>{row.name}</TableCell>
+                          <TableCell>{row.email}</TableCell>
+                          <TableCell>{row.position}</TableCell>
+                          <TableCell>{row.department}</TableCell>
+                          <TableCell>${row.salary_amount}</TableCell>
+                          <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                            {row.wallet_address?.slice(0, 6)}...{row.wallet_address?.slice(-4)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {parsedData.length > 10 && (
+                        <TableRow>
+                          <TableCell colSpan={6} sx={{ textAlign: 'center', fontStyle: 'italic', color: 'text.secondary' }}>
+                            ... and {parsedData.length - 10} more records
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </Card>
+              </Grid>
+            )}
+
+            {/* Import Progress */}
+            {importing && (
+              <Grid item xs={12}>
+                <Typography variant="h6" gutterBottom color="primary.main" fontWeight={600}>
+                  Import Progress
+                </Typography>
+                <Card sx={{ p: 3, borderRadius: 2 }}>
+                  <Stack spacing={2}>
+                    <Typography variant="body1">
+                      Processing employees... ({Math.round(importProgress)}%)
+                    </Typography>
+                    <LinearProgress 
+                      variant="determinate" 
+                      value={importProgress} 
+                      sx={{ height: 8, borderRadius: 4 }}
+                    />
+                  </Stack>
+                </Card>
+              </Grid>
+            )}
+
+            {/* Import Results */}
+            {importResults.successful > 0 || importResults.failed > 0 ? (
+              <Grid item xs={12}>
+                <Typography variant="h6" gutterBottom color="primary.main" fontWeight={600}>
+                  Import Results
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={6}>
+                    <Card sx={{ p: 2, borderRadius: 2, bgcolor: 'success.light', color: 'success.contrastText' }}>
+                      <Stack direction="row" alignItems="center" spacing={2}>
+                        <CheckCircleIcon />
+                        <Box>
+                          <Typography variant="h4" fontWeight={600}>
+                            {importResults.successful}
+                          </Typography>
+                          <Typography variant="body2">
+                            Successfully Imported
+                          </Typography>
+                        </Box>
+                      </Stack>
+                    </Card>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Card sx={{ p: 2, borderRadius: 2, bgcolor: 'error.light', color: 'error.contrastText' }}>
+                      <Stack direction="row" alignItems="center" spacing={2}>
+                        <ErrorIcon />
+                        <Box>
+                          <Typography variant="h4" fontWeight={600}>
+                            {importResults.failed}
+                          </Typography>
+                          <Typography variant="body2">
+                            Failed to Import
+                          </Typography>
+                        </Box>
+                      </Stack>
+                    </Card>
+                  </Grid>
+                  
+                  {importResults.errors.length > 0 && (
+                    <Grid item xs={12}>
+                      <Alert severity="error" sx={{ borderRadius: 2 }}>
+                        <Typography variant="body2" fontWeight={600} gutterBottom>
+                          Import Errors:
+                        </Typography>
+                        <Box sx={{ maxHeight: 150, overflow: 'auto' }}>
+                          {importResults.errors.map((error, index) => (
+                            <Typography key={index} variant="body2" sx={{ fontSize: '0.75rem' }}>
+                              • {error}
+                            </Typography>
+                          ))}
+                        </Box>
+                      </Alert>
+                    </Grid>
+                  )}
+                </Grid>
+              </Grid>
+            ) : null}
+
+            {/* Required Fields Info */}
+            <Grid item xs={12}>
+              <Alert severity="info" sx={{ borderRadius: 2 }}>
+                <Typography variant="body2" fontWeight={600} gutterBottom>
+                  Required CSV/Excel columns:
+                </Typography>
+                <Typography variant="body2" component="div">
+                  <strong>Required:</strong> name, email, position, department, salary_amount, wallet_address<br/>
+                  <strong>Optional:</strong> phone, employment_type, start_date, payment_frequency, preferred_token, subdomain, withholdings, tax_exempt, is_active
+                </Typography>
+              </Alert>
+            </Grid>
+          </Grid>
+        </DialogContent>
+        
+        <DialogActions sx={{ p: 3, pt: 1 }}>
+          <Button 
+            onClick={handleBulkImportClose}
+            color="inherit"
+            size="large"
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleBulkImport}
+            variant="contained"
+            disabled={importing || parsedData.length === 0}
+            startIcon={importing ? <CircularProgress size={20} /> : <CloudUploadIcon />}
+            size="large"
+            sx={{ ml: 2 }}
+          >
+            {importing ? 'Importing...' : `Import ${parsedData.length} Employees`}
           </Button>
         </DialogActions>
       </Dialog>

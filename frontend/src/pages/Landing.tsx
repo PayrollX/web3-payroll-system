@@ -56,7 +56,7 @@ import {
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { useAuth } from '../context/AuthContext'
 import { Link, useNavigate } from 'react-router-dom'
-import background from '../assets/background.png'
+import dashboardimage from '../assets/dashboard.png'
 
 
 /**
@@ -65,17 +65,17 @@ import background from '../assets/background.png'
  */
 
 interface FeatureCardProps {
-  icon: React.ReactNode
-  title: string
-  description: string
-  color: string
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  color: string;
 }
 
 interface StatCardProps {
-  value: string
-  label: string
-  sublabel?: string
-  color: string
+  value: string;
+  label: string;
+  sublabel?: string;
+  color: string;
 }
 
 const FeatureCard: React.FC<FeatureCardProps> = ({ icon, title, description, color }) => {
@@ -487,8 +487,7 @@ const Landing: React.FC = () => {
               </ul>
             </div>
             <div>
-              <div className="h-96 rounded-xl flex items-center justify-center" style={{background: `linear-gradient(135deg, ${theme.palette.primary.main}20 0%, ${theme.palette.secondary.main}20 100%)`}}>
-                <p className="text-2xl text-gray-600">Dashboard Preview</p>
+              <div className="h-96 rounded-xl flex items-center justify-center" style={{background: `url(${dashboardimage})`, backgroundSize: 'cover', backgroundPosition: 'center'}}>
               </div>
             </div>
           </div>
