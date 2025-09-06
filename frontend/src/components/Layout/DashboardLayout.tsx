@@ -32,7 +32,6 @@ import {
   CardGiftcard as BonusIcon,
   Analytics as AnalyticsIcon,
   Dns as ENSIcon,
-  Settings as SettingsIcon,
   AccountBalanceWallet as WalletIcon,
   Notifications as NotificationsIcon,
   Brightness4 as DarkModeIcon,
@@ -42,7 +41,6 @@ import {
   AccountCircle as AccountCircleIcon,
   Logout as LogoutIcon,
   Security as SecurityIcon,
-  Speed as SpeedIcon,
 } from '@mui/icons-material'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAccount, useDisconnect } from 'wagmi'
@@ -71,7 +69,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   
   // Auth state
   const { address, isConnected } = useAccount()
-  const { hasCompany, refreshStatus } = useAuth()
+  const { hasCompany } = useAuth()
   
   // Local state
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
@@ -157,12 +155,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       text: 'Analytics',
       icon: <AnalyticsIcon />,
       path: '/analytics',
-      badge: null,
-    },
-    {
-      text: 'Settings',
-      icon: <SettingsIcon />,
-      path: '/settings',
       badge: null,
     },
   ]
@@ -475,11 +467,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           },
         }}
       >
-        <MenuItem onClick={() => { handleProfileClose(); navigate('/settings') }}>
-          <SettingsIcon sx={{ mr: 2 }} />
-          Settings
-        </MenuItem>
-        <Divider />
         <MenuItem onClick={handleLogout}>
           <LogoutIcon sx={{ mr: 2 }} />
           Disconnect Wallet

@@ -36,9 +36,10 @@ import {
 } from '@mui/icons-material'
 import { useAccount } from 'wagmi'
 import { useAppSelector, useAppDispatch } from '../store/store'
-import { setCompanyDomain, setSubdomains, addSubdomain } from '../store/slices/ensSlice'
+import { setCompanyDomain } from '../store/slices/ensSlice'
 import { addNotification } from '../store/slices/uiSlice'
 import { ENSService } from '../services/ensService'
+import { useCompanyENS } from '../hooks/useApi'
 
 /**
  * ENS Management page for Web3 Payroll System
@@ -49,56 +50,46 @@ const ENSManagement: React.FC = () => {
   const { address, isConnected } = useAccount()
   const dispatch = useAppDispatch()
   
-  const { companyDomain, subdomains, isLoading, isRegistering, registrationError } = useAppSelector((state) => state.ens)
+  // Use real company ENS data from API
+  const { 
+    companyDomain: realCompanyDomain, 
+    employeeSubdomains: realSubdomains, 
+    loading: apiLoading, 
+    error: apiError, 
+    refreshCompanyData 
+  } = useCompanyENS()
+  
+  // Get ENS state from Redux store for UI states
+  const { isLoading, isRegistering, registrationError } = useAppSelector((state) => state.ens)
+  
+  // Use real data if available, otherwise use Redux state
+  const companyDomain = realCompanyDomain
+  const subdomains = realSubdomains
   
   const [domainName, setDomainName] = useState('')
   const [isAvailable, setIsAvailable] = useState<boolean | null>(null)
   const [showRegisterDialog, setShowRegisterDialog] = useState(false)
   const [ensService, setEnsService] = useState<ENSService | null>(null)
 
-  // Initialize ENS service (simplified for now)
+  // Initialize ENS service
   useEffect(() => {
-    // TODO: Initialize ENS service when provider/signer are available
-    setEnsService(null)
-  }, [])
-
-  // Mock data for demonstration
-  useEffect(() => {
-    if (isConnected) {
-      // Mock company domain
-      const mockCompanyDomain = {
-        name: 'testcompany.eth',
-        node: '0x1234567890abcdef',
-        owner: address || '',
-        resolver: '0x4976fb03C32e5B8cfe2b6cCB31c09Ba78EBaBa41',
-        isAvailable: false,
-        expiryDate: Date.now() + 365 * 24 * 60 * 60 * 1000, // 1 year from now
-      }
-
-      // Mock subdomains
-      const mockSubdomains = [
-        {
-          name: 'alice',
-          fullName: 'alice.testcompany.eth',
-          node: '0xabc123',
-          owner: '0x1234567890123456789012345678901234567890',
-          employeeAddress: '0x1234567890123456789012345678901234567890',
-          createdAt: Date.now() - 2592000000, // 30 days ago
-        },
-        {
-          name: 'bob',
-          fullName: 'bob.testcompany.eth',
-          node: '0xdef456',
-          owner: '0x9876543210987654321098765432109876543210',
-          employeeAddress: '0x9876543210987654321098765432109876543210',
-          createdAt: Date.now() - 1728000000, // 20 days ago
-        },
-      ]
-
-      dispatch(setCompanyDomain(mockCompanyDomain))
-      dispatch(setSubdomains(mockSubdomains))
+    if (isConnected && address) {
+      // TODO: Initialize ENS service when wagmi providers are available
+      // For now, we'll use the API for ENS operations
+      setEnsService(null)
     }
   }, [isConnected, address, dispatch])
+
+  // Handle API errors
+  useEffect(() => {
+    if (apiError) {
+      dispatch(addNotification({
+        type: 'error',
+        title: 'Data Loading Error',
+        message: apiError
+      }))
+    }
+  }, [apiError, dispatch])
 
   const handleCheckAvailability = async () => {
     if (!ensService || !domainName) return
@@ -158,6 +149,10 @@ const ENSManagement: React.FC = () => {
           expiryDate: Date.now() + 365 * 24 * 60 * 60 * 1000,
         }
         dispatch(setCompanyDomain(newDomain))
+        
+        // Refresh real data from API
+        refreshCompanyData()
+        
         setShowRegisterDialog(false)
         setDomainName('')
         setIsAvailable(null)
@@ -177,6 +172,8 @@ const ENSManagement: React.FC = () => {
     }
   }
 
+  // TODO: Implement subdomain creation handler when needed
+  /*
   const handleCreateSubdomain = async (subdomainName: string, employeeAddress: string) => {
     if (!ensService || !companyDomain) return
 
@@ -204,6 +201,9 @@ const ENSManagement: React.FC = () => {
           createdAt: Date.now(),
         }
         dispatch(addSubdomain(newSubdomain))
+        
+        // Refresh real data from API to get updated subdomain list
+        refreshCompanyData()
       } else {
         dispatch(addNotification({
           type: 'error',
@@ -219,6 +219,7 @@ const ENSManagement: React.FC = () => {
       }))
     }
   }
+  */
 
   const validateDomainName = (name: string) => {
     if (!name || name.length < 3) {
@@ -252,21 +253,45 @@ const ENSManagement: React.FC = () => {
     )
   }
 
+  if (apiLoading) {
+    return (
+      <Box sx={{ textAlign: 'center', mt: 8 }}>
+        <Typography variant="h4" gutterBottom>
+          ENS Management
+        </Typography>
+        <LinearProgress sx={{ mt: 2, mb: 2 }} />
+        <Typography variant="body1" color="text.secondary">
+          Loading your company data...
+        </Typography>
+      </Box>
+    )
+  }
+
   return (
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4">
           ENS Management
         </Typography>
-        {!companyDomain && (
+        <Box sx={{ display: 'flex', gap: 2 }}>
           <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => setShowRegisterDialog(true)}
+            variant="outlined"
+            startIcon={<RefreshIcon />}
+            onClick={refreshCompanyData}
+            disabled={apiLoading}
           >
-            Register Company Domain
+            Refresh Data
           </Button>
-        )}
+          {!companyDomain && (
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => setShowRegisterDialog(true)}
+            >
+              Register Company Domain
+            </Button>
+          )}
+        </Box>
       </Box>
 
       {/* Company Domain Status */}
@@ -309,8 +334,8 @@ const ENSManagement: React.FC = () => {
                 No Company Domain Registered
               </Typography>
               <Typography variant="body2">
-                Register a company domain to start creating employee subdomains.
-                This will allow you to create human-readable addresses like alice.yourcompany.eth
+                To manage ENS domains, you need to register your company first and have a company ENS domain.
+                This will allow you to create human-readable addresses like alice.yourcompany.eth for your employees.
               </Typography>
             </Alert>
           </CardContent>
@@ -401,10 +426,10 @@ const ENSManagement: React.FC = () => {
             </Table>
           </TableContainer>
 
-          {subdomains.length === 0 && (
+          {subdomains.length === 0 && companyDomain && (
             <Box sx={{ textAlign: 'center', py: 4 }}>
               <Typography variant="body1" color="text.secondary">
-                No subdomains created yet. Add employees to automatically create their ENS subdomains.
+                No employee subdomains found. Subdomains are automatically created when you add employees to your company.
               </Typography>
             </Box>
           )}

@@ -180,3 +180,4 @@ class CurrencyService {
 // Export singleton instance
 export const currencyService = new CurrencyService()
 export default currencyService
+

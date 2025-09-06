@@ -10,9 +10,7 @@ import {
   EmployeeData, 
   PaymentRecord, 
   BonusRecord, 
-  AnalyticsData,
-  PaginatedResponse,
-  EmployeesResponse 
+  AnalyticsData
 } from '../services/apiService'
 
 export interface UseEmployeesReturn {
@@ -120,7 +118,7 @@ export const useEmployees = (params?: {
     } finally {
       setLoading(false)
     }
-  }, [params])
+  }, [params, address])
 
   const createEmployee = useCallback(async (data: Partial<EmployeeData>): Promise<boolean> => {
     try {
@@ -486,7 +484,7 @@ export const useAnalytics = (): UseAnalyticsReturn => {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [address])
 
   const refreshAnalytics = useCallback(async () => {
     await loadAnalytics()
@@ -550,6 +548,107 @@ export const useAuth = () => {
     user,
     authenticateWithWallet,
     logout,
+  }
+}
+
+export interface UseCompanyENSReturn {
+  companyDomain: any | null
+  employeeSubdomains: any[]
+  loading: boolean
+  error: string | null
+  refreshCompanyData: () => Promise<void>
+}
+
+/**
+ * Hook for company ENS data
+ */
+export const useCompanyENS = (): UseCompanyENSReturn => {
+  const { address } = useAccount()
+  const [companyDomain, setCompanyDomain] = useState<any | null>(null)
+  const [employeeSubdomains, setEmployeeSubdomains] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Set wallet address in API service when address changes
+  useEffect(() => {
+    if (address) {
+      apiService.setWalletAddress(address)
+    }
+  }, [address])
+
+  const loadCompanyData = useCallback(async () => {
+    if (!address) {
+      console.log('🔐 useCompanyENS: No wallet address available, skipping load')
+      return
+    }
+    
+    setLoading(true)
+    setError(null)
+    
+    try {
+      console.log('🔐 useCompanyENS: Loading company data for wallet:', address)
+      
+      // Get company status to check if user has a company
+      const statusResponse = await apiService.getCompanyStatus()
+      
+      if (statusResponse.success && statusResponse.data?.hasCompany && statusResponse.data.company) {
+        const company = statusResponse.data.company
+        
+        // Transform company data to ENS domain format
+        const domain = {
+          name: company.ensDomain,
+          node: company.ensNode,
+          owner: company.ownerWallet,
+          resolver: '0x4976fb03C32e5B8cfe2b6cCB31c09Ba78EBaBa41', // Default resolver
+          isAvailable: false,
+          expiryDate: Date.now() + 365 * 24 * 60 * 60 * 1000, // Default 1 year
+        }
+        
+        setCompanyDomain(domain)
+        
+        // Get employees to build subdomains
+        const employeesResponse = await apiService.getEmployees()
+        
+        if (employeesResponse.success && employeesResponse.data?.employees) {
+          const subdomains = employeesResponse.data.employees.map((emp: any) => ({
+            name: emp.ensDetails?.subdomain || emp.personalInfo?.name?.toLowerCase().replace(/[^a-z0-9]/g, ''),
+            fullName: emp.ensDetails?.fullDomain || `${emp.ensDetails?.subdomain || emp.personalInfo?.name?.toLowerCase().replace(/[^a-z0-9]/g, '')}.${company.ensDomain}`,
+            node: emp.ensDetails?.ensNode || '0x' + Math.random().toString(16).substr(2, 8),
+            owner: emp.payrollSettings?.walletAddress || '',
+            employeeAddress: emp.payrollSettings?.walletAddress || '',
+            createdAt: emp.createdAt ? new Date(emp.createdAt).getTime() : Date.now(),
+          }))
+          
+          setEmployeeSubdomains(subdomains)
+        }
+      } else {
+        setCompanyDomain(null)
+        setEmployeeSubdomains([])
+      }
+      
+    } catch (err) {
+      console.error('🔐 useCompanyENS: Error loading company data:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load company data')
+    } finally {
+      setLoading(false)
+    }
+  }, [address])
+
+  // Load data when component mounts or address changes
+  useEffect(() => {
+    loadCompanyData()
+  }, [loadCompanyData])
+
+  const refreshCompanyData = useCallback(async () => {
+    await loadCompanyData()
+  }, [loadCompanyData])
+
+  return {
+    companyDomain,
+    employeeSubdomains,
+    loading,
+    error,
+    refreshCompanyData,
   }
 }
 

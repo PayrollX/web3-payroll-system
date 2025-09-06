@@ -424,10 +424,24 @@ export class ApiService {
   // ENS API
 
   /**
+   * Get company status and domain info
+   */
+  async getCompanyStatus(): Promise<ApiResponse<{ hasCompany: boolean, company: any }>> {
+    return this.request<{ hasCompany: boolean, company: any }>(`/companies/status`)
+  }
+
+  /**
    * Get company domains
    */
   async getCompanyDomains(): Promise<ApiResponse<any[]>> {
     return this.request<any[]>(`${API_ENDPOINTS.ENS}/company-domains`)
+  }
+
+  /**
+   * Get employee subdomains for a company
+   */
+  async getEmployeeSubdomains(): Promise<ApiResponse<any[]>> {
+    return this.request<any[]>(`${API_ENDPOINTS.ENS}/subdomains`)
   }
 
   /**
