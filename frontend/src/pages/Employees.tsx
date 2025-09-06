@@ -54,8 +54,7 @@ import { useAppDispatch } from '../store/store'
 import { addNotification } from '../store/slices/uiSlice'
 import { useBlockchain } from '../hooks/useBlockchain'
 import { useEmployees } from '../hooks/useApi'
-import { EmployeeOnboardingForm } from '../components/EmployeeOnboarding'
-import { 
+import {
   TOKEN_ADDRESSES, 
   NETWORKS, 
   PAYMENT_FREQUENCIES, 
