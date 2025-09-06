@@ -94,7 +94,8 @@ export const useENS = () => {
 
     setIsLoading(true)
     try {
-      return await ensService.registerDomain(domainName, duration)
+      // Use real registration function for actual blockchain transactions
+      return await ensService.registerDomainReal(domainName, duration)
     } finally {
       setIsLoading(false)
     }

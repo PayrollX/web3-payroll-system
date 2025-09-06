@@ -70,3 +70,4 @@ export const forceDisconnect = () => {
   // Reload the page to reset all wallet state
   window.location.reload()
 }
+

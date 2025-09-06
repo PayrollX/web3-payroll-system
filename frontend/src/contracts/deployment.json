@@ -1,5 +1,7 @@
 {
-  "chainId": 31337,
-  "contractAddress": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-  "deployedAt": "2025-09-05T09:57:22.579Z"
+  "chainId": 11155111,
+  "contractAddress": "0x67B96844213890B02D8069358821510222e65444",
+  "deployedAt": "2025-09-05T22:10:51.947Z",
+  "deployer": "0x42Fb6B10397b314ba2100c73c0899942C3e44929",
+  "transactionHash": "0x33427aaec743e1c2297a189e11c5c43ba1c286529553105b099ed4e70cb748da"
 }

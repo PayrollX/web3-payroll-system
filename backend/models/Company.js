@@ -35,6 +35,32 @@ const companySchema = new mongoose.Schema({
     required: true, 
     unique: true,
     lowercase: true
+  },
+
+  // ENS Registration verification data
+  ensTransactionHash: {
+    type: String,
+    required: false // Optional for backwards compatibility
+  },
+
+  ensBlockNumber: {
+    type: Number,
+    required: false
+  },
+
+  ensGasUsed: {
+    type: String,
+    required: false
+  },
+
+  ensRegistrationConfirmed: {
+    type: Boolean,
+    default: false
+  },
+
+  createdAt: {
+    type: Date,
+    default: Date.now
   }
 
 }, {

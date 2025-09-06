@@ -30,8 +30,11 @@ module.exports = {
       gas: "auto"
     },
     sepolia: {
-      url: `https://eth-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`,
-      accounts: (process.env.PRIVATE_KEY && process.env.PRIVATE_KEY !== 'your_private_key_here') ? [process.env.PRIVATE_KEY] : []
+      url: "https://ethereum-sepolia-rpc.publicnode.com", // Public RPC endpoint
+      accounts: (process.env.PRIVATE_KEY && process.env.PRIVATE_KEY !== 'your_private_key_here') ? [process.env.PRIVATE_KEY] : [],
+      timeout: 120000, // 2 minutes timeout
+      gas: "auto",
+      gasPrice: "auto"
     },
     goerli: {
       url: `https://eth-goerli.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`,

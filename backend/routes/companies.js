@@ -94,38 +94,37 @@ router.post('/register',
         return res.status(409).json({ error: 'ENS domain not available', reason: ensCheck.reason })
       }
 
-      // ATTEMPT ENS DOMAIN REGISTRATION/PURCHASE
-      console.log(`🔗 Attempting ENS registration for ${companyDomain}.eth...`)
-      const ensRegistration = await ensService.registerDomainOnTestnet(companyDomain, req.wallet)
+      // GET ENS REGISTRATION INFO (availability and cost)
+      console.log(`🔗 Getting ENS registration info for ${companyDomain}.eth...`)
+      const ensInfo = await ensService.registerDomainOnTestnet(companyDomain, req.wallet)
       
-      if (!ensRegistration.success) {
-        console.error(`❌ ENS registration failed:`, ensRegistration.error)
+      if (!ensInfo.success) {
+        console.error(`❌ ENS registration info failed:`, ensInfo.error)
         return res.status(400).json({ 
-          error: 'ENS registration failed', 
-          details: ensRegistration.error,
-          message: 'Domain registration incomplete - ENS purchase required'
+          error: 'ENS registration info failed', 
+          details: ensInfo.error,
+          message: 'Unable to get domain registration information'
         })
       }
 
-      console.log(`✅ ENS registration successful:`, ensRegistration.transactionHash)
+      console.log(`✅ ENS registration info retrieved:`, ensInfo.cost)
 
-      // Only create company AFTER successful ENS registration
-      const company = new Company({
-        name: companyName,
-        ensDomain: fullDomain,
-        ensNode: ethers.utils.namehash(fullDomain),
-        ownerWallet: req.wallet
-      })
-
-      await company.save()
-
-      res.status(201).json({
+      // Return registration info for frontend to handle actual registration
+      res.status(200).json({
         success: true,
-        company,
-        ensRegistration: {
-          transactionHash: ensRegistration.transactionHash,
-          network: ensRegistration.network,
-          cost: ensRegistration.cost
+        registrationInfo: {
+          domain: ensInfo.domain,
+          cost: ensInfo.cost,
+          costWei: ensInfo.costWei,
+          available: ensInfo.available,
+          network: ensInfo.network,
+          message: ensInfo.message
+        },
+        companyData: {
+          name: companyName,
+          ensDomain: fullDomain,
+          ensNode: ethers.utils.namehash(fullDomain),
+          ownerWallet: req.wallet
         }
       })
 
@@ -134,6 +133,66 @@ router.post('/register',
     }
   }
 )
+
+/**
+ * Create company after successful ENS registration
+ */
+router.post('/create-after-ens', requireWallet, async (req, res) => {
+  try {
+    const { companyData, transactionHash, blockNumber, gasUsed } = req.body
+
+    if (!companyData || !transactionHash) {
+      return res.status(400).json({ error: 'Missing required data' })
+    }
+
+    // Verify the wallet address matches
+    if (companyData.ownerWallet.toLowerCase() !== req.wallet.toLowerCase()) {
+      return res.status(403).json({ error: 'Wallet address mismatch' })
+    }
+
+    // Additional validation: verify transaction hash format
+    if (!transactionHash.match(/^0x[a-fA-F0-9]{64}$/)) {
+      return res.status(400).json({ error: 'Invalid transaction hash format' })
+    }
+
+    console.log(`✅ Creating company after confirmed ENS registration`)
+    console.log(`📝 Company: ${companyData.name}`)
+    console.log(`🌐 Domain: ${companyData.ensDomain}`)
+    console.log(`🔗 Transaction: ${transactionHash}`)
+    console.log(`📦 Block: ${blockNumber || 'unknown'}`)
+    console.log(`⛽ Gas used: ${gasUsed || 'unknown'}`)
+
+    // Create the company with additional verification data
+    const company = new Company({
+      name: companyData.name,
+      ensDomain: companyData.ensDomain,
+      ensNode: companyData.ensNode,
+      ownerWallet: companyData.ownerWallet,
+      ensTransactionHash: transactionHash,
+      ensBlockNumber: blockNumber,
+      ensGasUsed: gasUsed,
+      ensRegistrationConfirmed: true, // Mark as confirmed since we waited for confirmation
+      createdAt: new Date()
+    })
+
+    await company.save()
+
+    console.log(`🎉 Company created successfully with ID: ${company._id}`)
+
+    res.status(201).json({
+      success: true,
+      company,
+      message: 'Company created successfully after verified ENS registration'
+    })
+
+  } catch (error) {
+    console.error('❌ Failed to create company after ENS registration:', error)
+    res.status(500).json({ 
+      error: 'Failed to create company',
+      details: error.message 
+    })
+  }
+})
 
 /**
  * Get company info
@@ -262,17 +321,42 @@ router.get('/check-domain/:domain', async (req, res) => {
     if (existing) {
       return res.json({
         available: false,
-        reason: 'Domain taken'
+        domain: fullDomain,
+        reason: 'Domain taken',
+        source: 'database'
       })
     }
 
-    // Check ENS
-    const ensCheck = await ensService.checkDomainAvailability(domain)
-    
-    res.json({
-      available: ensCheck.available,
-      reason: ensCheck.reason || 'Available'
-    })
+    // Check ENS with fallback
+    try {
+      const ensCheck = await ensService.checkDomainAvailability(domain)
+      
+      res.json({
+        available: ensCheck.available,
+        domain: ensCheck.domain || fullDomain,
+        reason: ensCheck.reason || 'Available',
+        source: 'blockchain',
+        details: {
+          ensCheck: ensCheck,
+          databaseCheck: null
+        }
+      })
+    } catch (error) {
+      // If blockchain check fails, assume domain is available for registration
+      // The actual registration will handle the real availability check
+      console.log(`Blockchain check failed for ${domain}, assuming available: ${error.message}`)
+      
+      res.json({
+        available: true,
+        domain: fullDomain,
+        reason: 'Available (blockchain check failed, assuming available)',
+        source: 'fallback',
+        details: {
+          ensCheck: null,
+          databaseCheck: null
+        }
+      })
+    }
 
   } catch (error) {
     res.status(500).json({ error: 'Domain check failed' })

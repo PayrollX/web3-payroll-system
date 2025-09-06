@@ -27,7 +27,7 @@ const ENS_CONTRACTS = {
     ENS_REGISTRY: "0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e", // Same as mainnet
     ETH_REGISTRAR_CONTROLLER: "0xFED6a969AaA60E4961FCD3EBF1A2e8913ac65B72", // Sepolia controller
     BASE_REGISTRAR: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85", // Same as mainnet
-    PUBLIC_RESOLVER: "0x8FADE66B79cC9f707aB26799354482EB93a5B7dD", // Sepolia resolver
+    PUBLIC_RESOLVER: "0xE99638b40E4Fff0129D56f03b55b6bbC4BBE49b5", // Correct Sepolia resolver
   },
   // For local testing, we'll use mainnet addresses but with local provider
   LOCAL: {
@@ -44,6 +44,40 @@ const BASE_REGISTRAR_ABI = [
     "inputs": [{"internalType": "uint256", "name": "id", "type": "uint256"}],
     "name": "available",
     "outputs": [{"internalType": "bool", "name": "", "type": "bool"}],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]
+
+// ETH Registrar Controller ABI for domain registration
+const ETH_REGISTRAR_CONTROLLER_ABI = [
+  {
+    "inputs": [
+      {"internalType": "string", "name": "name", "type": "string"},
+      {"internalType": "address", "name": "owner", "type": "address"},
+      {"internalType": "uint256", "name": "duration", "type": "uint256"},
+      {"internalType": "bytes32", "name": "secret", "type": "bytes32"},
+      {"internalType": "address", "name": "resolver", "type": "address"},
+      {"internalType": "bytes[]", "name": "data", "type": "bytes[]"},
+      {"internalType": "bool", "name": "reverseRecord", "type": "bool"},
+      {"internalType": "uint16", "name": "ownerControlledFuses", "type": "uint16"}
+    ],
+    "name": "register",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {"internalType": "string", "name": "name", "type": "string"},
+      {"internalType": "address", "name": "owner", "type": "address"},
+      {"internalType": "uint256", "name": "duration", "type": "uint256"}
+    ],
+    "name": "rentPrice",
+    "outputs": [
+      {"internalType": "uint256", "name": "base", "type": "uint256"},
+      {"internalType": "uint256", "name": "premium", "type": "uint256"}
+    ],
     "stateMutability": "view",
     "type": "function"
   }
@@ -88,7 +122,7 @@ class ENSService {
         case 'mainnet':
           return new ethers.providers.JsonRpcProvider(process.env.MAINNET_RPC_URL || 'https://mainnet.infura.io/v3/demo')
         case 'sepolia':
-          return new ethers.providers.JsonRpcProvider(process.env.SEPOLIA_RPC_URL || 'https://sepolia.infura.io/v3/demo')
+          return new ethers.providers.JsonRpcProvider(process.env.SEPOLIA_RPC_URL || 'https://eth-sepolia.g.alchemy.com/v2/Bl5IpQ4M7YdHcMngA1n7k')
         case 'local':
           return new ethers.providers.JsonRpcProvider('http://127.0.0.1:8545')
         default:
@@ -138,8 +172,10 @@ class ENSService {
       if (this.currentNetwork === 'local') {
         return {
           available: true,
+          domain: `${domainName}.eth`,
           onChain: false,
-          reason: 'Domain appears available (local simulation)'
+          reason: 'Domain appears available (local simulation)',
+          type: 'eth'
         }
       }
 
@@ -147,13 +183,19 @@ class ENSService {
       const blockchainResult = await this.checkBlockchainAvailability(domainName)
       
       if (blockchainResult.onChain) {
-        return blockchainResult
+        return {
+          ...blockchainResult,
+          domain: `${domainName}.eth`,
+          type: 'eth'
+        }
       } else {
         // Fallback to simulation if blockchain check fails
         return {
           available: true,
+          domain: `${domainName}.eth`,
           onChain: false,
-          reason: 'Domain appears available (blockchain check failed, using simulation)'
+          reason: 'Domain appears available (blockchain check failed, using simulation)',
+          type: 'eth'
         }
       }
 
@@ -161,8 +203,10 @@ class ENSService {
       logger.error('Domain availability check failed:', error.message)
       return {
         available: false,
+        domain: `${domainName}.eth`,
         onChain: false,
-        reason: 'Error checking domain availability'
+        reason: 'Error checking domain availability',
+        type: 'eth'
       }
     }
   }
@@ -202,8 +246,10 @@ class ENSService {
 
       return {
         available: available && !isOwned,
+        domain: `${domainName}.eth`,
         onChain: true,
-        reason: available && !isOwned ? 'Domain is available' : 'Domain is already registered'
+        reason: available && !isOwned ? 'Domain is available' : 'Domain is already registered',
+        type: 'eth'
       }
 
     } catch (error) {
@@ -212,8 +258,10 @@ class ENSService {
       // If blockchain check fails, we can't be sure
       return {
         available: false,
+        domain: `${domainName}.eth`,
         onChain: false,
-        reason: 'Unable to verify on blockchain'
+        reason: 'Unable to verify on blockchain',
+        type: 'eth'
       }
     }
   }
@@ -228,15 +276,19 @@ class ENSService {
     if (takenDomains.includes(domainName.toLowerCase())) {
       return {
         available: false,
+        domain: `${domainName}.eth`,
         onChain: false,
-        reason: 'Domain is taken (simulated)'
+        reason: 'Domain is taken (simulated)',
+        type: 'eth'
       }
     }
 
     return {
       available: true,
+      domain: `${domainName}.eth`,
       onChain: false,
-      reason: 'Domain appears available (local simulation)'
+      reason: 'Domain appears available (local simulation)',
+      type: 'eth'
     }
   }
 
@@ -303,26 +355,58 @@ class ENSService {
           }
         }
 
-        // For now, simulate successful registration on Sepolia
-        // In a real implementation, this would require:
-        // 1. A wallet with Sepolia ETH
-        // 2. Integration with the ETH Registrar Controller
-        // 3. Proper transaction signing and submission
-        
-        logger.info(`Simulating successful ENS registration for ${domainName}.eth on Sepolia`)
-        
-        // Simulate registration delay
-        await new Promise(resolve => setTimeout(resolve, 3000))
-        
-        return {
-          success: true,
-          transactionHash: `0x${Math.random().toString(16).substring(2, 66)}`, // Mock hash
-          domain: `${domainName}.eth`,
-          owner: ownerAddress,
-          duration: duration,
-          network: 'sepolia-simulation',
-          cost: '0.005 ETH (estimated)',
-          message: 'Domain registration simulated - real registration requires wallet integration'
+        // Get registration cost
+        const ethRegistrarController = new ethers.Contract(
+          this.contracts.ETH_REGISTRAR_CONTROLLER,
+          ETH_REGISTRAR_CONTROLLER_ABI,
+          this.provider
+        )
+
+        try {
+          // Try to get registration cost from contract
+          const [basePrice, premiumPrice] = await ethRegistrarController.rentPrice(
+            domainName,
+            ownerAddress,
+            duration
+          )
+          
+          const totalCost = basePrice.add(premiumPrice)
+          logger.info(`Registration cost for ${domainName}.eth: ${ethers.utils.formatEther(totalCost)} ETH`)
+
+          // Backend cannot sign transactions - registration must be done on frontend
+          // Return availability and cost information for frontend to handle registration
+          
+          logger.info(`Domain ${domainName}.eth is available for registration on Sepolia`)
+          
+          return {
+            success: true,
+            available: true,
+            domain: `${domainName}.eth`,
+            owner: ownerAddress,
+            duration: duration,
+            network: 'sepolia',
+            cost: `${ethers.utils.formatEther(totalCost)} ETH`,
+            costWei: totalCost.toString(),
+            message: 'Domain is available - registration must be completed on frontend with wallet signature'
+          }
+        } catch (priceError) {
+          logger.error(`Failed to get registration price: ${priceError.message}`)
+          
+          // If we can't get the price from the contract, provide a fallback
+          // This might happen if the contract interface is different on Sepolia
+          logger.info(`Using fallback pricing for ${domainName}.eth`)
+          
+          return {
+            success: true,
+            available: true,
+            domain: `${domainName}.eth`,
+            owner: ownerAddress,
+            duration: duration,
+            network: 'sepolia',
+            cost: '0.005 ETH (estimated)',
+            costWei: ethers.utils.parseEther('0.005').toString(),
+            message: 'Domain is available - registration must be completed on frontend with wallet signature (estimated cost)'
+          }
         }
       }
 

@@ -12,9 +12,9 @@ async function main() {
     console.log("Deploying contracts with account:", deployer.address);
     console.log("Account balance:", ethers.formatEther(await ethers.provider.getBalance(deployer.address)));
 
-    // ENS Registry on Ethereum Mainnet
+    // ENS Registry on Sepolia Testnet
     const ENS_REGISTRY = "0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e";
-    const PUBLIC_RESOLVER = "0x4976fb03C32e5B8cfe2b6cCB31c09Ba78EBaBa41";
+    const PUBLIC_RESOLVER = "0xE99638b40E4Fff0129D56f03b55b6bbC4BBE49b5";
     
     // For testing, we'll use a placeholder company node
     // In production, this should be the actual company domain node

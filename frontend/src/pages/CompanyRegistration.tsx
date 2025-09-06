@@ -38,6 +38,9 @@ import {
 } from '@mui/icons-material'
 import { useAccount } from 'wagmi'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
+import { useAuth } from '../context/AuthContext'
+import { useENS } from '../hooks/useENS'
+import { waitForTransactionConfirmation, getEtherscanTxUrl } from '../utils/transactionVerification'
 
 /**
  * Company Registration Page
@@ -61,6 +64,8 @@ const steps = [
 const CompanyRegistration: React.FC = () => {
   const theme = useTheme()
   const { address, isConnected } = useAccount()
+  const { refreshStatus } = useAuth()
+  const { registerETHDomain } = useENS()
   const navigate = useNavigate()
 
   // Component state
@@ -72,6 +77,7 @@ const CompanyRegistration: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const [progress, setProgress] = useState<string>('')
   const [domainAvailable, setDomainAvailable] = useState<boolean | null>(null)
   const [domainCheckDetails, setDomainCheckDetails] = useState<any>(null)
   const [checkingDomain, setCheckingDomain] = useState(false)
@@ -190,6 +196,9 @@ const CompanyRegistration: React.FC = () => {
 
     try {
       const baseUrl = (process.env.REACT_APP_API_URL || 'http://localhost:3001') + '/api'
+      
+      // Step 1: Get registration info from backend
+      console.log('🔗 Getting ENS registration info...')
       const response = await fetch(`${baseUrl}/companies/register`, {
         method: 'POST',
         headers: {
@@ -201,21 +210,96 @@ const CompanyRegistration: React.FC = () => {
 
       const data = await response.json()
 
-      if (response.ok && data.success) {
-        setRegisteredCompany(data.company)
-        setSuccess(true)
-        setShowSuccessDialog(true)
-        setActiveStep(3)
-        
-        // Automatically redirect to dashboard after 3 seconds
-        setTimeout(() => {
-          navigate('/dashboard')
-        }, 3000)
-      } else {
-        setError(data.message || data.error || 'Registration failed')
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || data.error || 'Failed to get registration info')
       }
-    } catch (error) {
-      setError('Network error. Please try again.')
+
+      const { registrationInfo, companyData } = data
+      console.log('✅ Registration info received:', registrationInfo)
+
+      // Step 2: Perform actual ENS registration on frontend with verification
+      console.log('🚀 Starting real ENS registration...')
+      console.log(`💰 Real registration cost: ${registrationInfo.cost}`)
+      
+      // Use the real ENS registration function
+      const ensResult = await registerETHDomain(formData.companyDomain, 31536000) // 1 year
+      
+      if (!ensResult.success) {
+        throw new Error(ensResult.error || 'ENS registration failed')
+      }
+      
+      console.log(`✅ ENS registration transaction submitted: ${ensResult.transactionHash}`)
+      const transactionHash = ensResult.transactionHash!
+
+      // Step 2.5: Wait for proper transaction confirmation on Etherscan
+      console.log('⏳ Waiting for transaction confirmation on blockchain...')
+      console.log(`🔗 View transaction: ${getEtherscanTxUrl(transactionHash, 11155111)}`)
+      
+      setProgress('Waiting for blockchain confirmation...')
+      
+      const confirmationResult = await waitForTransactionConfirmation(
+        transactionHash,
+        11155111, // Sepolia chain ID
+        2, // Require 2 confirmations
+        180000, // 3 minutes timeout
+        process.env.REACT_APP_ETHERSCAN_API_KEY
+      )
+      
+      if (!confirmationResult.success || confirmationResult.status !== 'success') {
+        throw new Error(
+          confirmationResult.error || 
+          'Transaction failed or was not confirmed within timeout period'
+        )
+      }
+      
+      console.log(`✅ Transaction confirmed on blockchain! Block: ${confirmationResult.blockNumber}`)
+      console.log(`⛽ Gas used: ${confirmationResult.gasUsed}`)
+
+      // Step 3: Create company only after successful blockchain confirmation
+      console.log('🏢 Creating company after confirmed ENS registration...')
+      setProgress('Creating company profile...')
+      
+      const createResponse = await fetch(`${baseUrl}/companies/create-after-ens`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-wallet-address': address
+        },
+        body: JSON.stringify({
+          companyData,
+          transactionHash,
+          blockNumber: confirmationResult.blockNumber,
+          gasUsed: confirmationResult.gasUsed
+        })
+      })
+
+      const createData = await createResponse.json()
+
+      if (!createResponse.ok || !createData.success) {
+        throw new Error(createData.error || 'Failed to create company')
+      }
+
+      console.log('✅ Company created successfully:', createData.company)
+
+      // Set success state
+      setRegisteredCompany(createData.company)
+      setSuccess(true)
+      setShowSuccessDialog(true)
+      setActiveStep(3)
+      
+      // Refresh auth status to update hasCompany state
+      console.log('🔄 Refreshing auth status after successful registration...')
+      await refreshStatus()
+      
+      // Automatically redirect to dashboard after 3 seconds
+      setTimeout(() => {
+        console.log('🔄 Redirecting to dashboard...')
+        navigate('/dashboard', { replace: true })
+      }, 3000)
+
+    } catch (error: any) {
+      console.error('❌ Registration failed:', error)
+      setError(error.message || 'Registration failed. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -455,7 +539,14 @@ const CompanyRegistration: React.FC = () => {
                 </Button>
               </Box>
             ) : (
-              <CircularProgress />
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <CircularProgress />
+                {progress && (
+                  <Typography variant="body2" sx={{ mt: 2, color: 'text.secondary' }}>
+                    {progress}
+                  </Typography>
+                )}
+              </Box>
             )}
           </Box>
         )
@@ -514,7 +605,11 @@ const CompanyRegistration: React.FC = () => {
       </Paper>
 
       {/* Success Dialog */}
-      <Dialog open={showSuccessDialog} onClose={() => setShowSuccessDialog(false)}>
+      <Dialog 
+        open={showSuccessDialog} 
+        onClose={() => {}} // Prevent closing dialog to avoid navigation issues
+        disableEscapeKeyDown
+      >
         <DialogTitle>🎉 Registration Complete!</DialogTitle>
         <DialogContent>
           <Typography gutterBottom>
@@ -533,7 +628,15 @@ const CompanyRegistration: React.FC = () => {
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => navigate('/dashboard')} variant="contained">
+          <Button 
+            onClick={async () => {
+              console.log('🔄 Manual redirect to dashboard...')
+              // Refresh auth status before redirecting
+              await refreshStatus()
+              navigate('/dashboard', { replace: true })
+            }} 
+            variant="contained"
+          >
             Go to Dashboard Now
           </Button>
         </DialogActions>

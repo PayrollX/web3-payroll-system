@@ -19,10 +19,10 @@ export const NETWORKS = {
   SEPOLIA: {
     chainId: 11155111,
     name: 'Sepolia Testnet',
-    rpcUrl: 'https://eth-sepolia.g.alchemy.com/v2/Bl5IpQ4M7YdHcMngA1n7k',
+    rpcUrl: 'https://ethereum-sepolia-rpc.publicnode.com',
     blockExplorer: 'https://sepolia.etherscan.io',
     ensRegistry: '0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e',
-    publicResolver: '0x4976fb03C32e5B8cfe2b6Cb31c09Ba78EBaBa41',
+    publicResolver: '0xE99638b40E4Fff0129D56f03b55b6bbC4BBE49b5',
   },
   GOERLI: {
     chainId: 5,
@@ -80,7 +80,7 @@ export const CONTRACT_ADDRESSES = {
     PayrollManager: process.env.REACT_APP_PAYROLL_MANAGER_MAINNET || '0x5FbDB2315678afecb367f032d93F642f64180aa3',
   },
   [NETWORKS.SEPOLIA.chainId]: {
-    PayrollManager: process.env.REACT_APP_PAYROLL_MANAGER_SEPOLIA || '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+    PayrollManager: process.env.REACT_APP_PAYROLL_MANAGER_SEPOLIA || '0x129E1b72A99dfE27761Fec94a29C9c0c4A3e893B',
   },
   [NETWORKS.GOERLI.chainId]: {
     PayrollManager: process.env.REACT_APP_PAYROLL_MANAGER_GOERLI || '0x5FbDB2315678afecb367f032d93F642f64180aa3',
