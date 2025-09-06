@@ -16,7 +16,7 @@ import { store } from './store/store'
 
 // Components
 import ProtectedRoute from './components/Auth/ProtectedRoute'
-import RegistrationGuard from './components/Auth/RegistrationGuard'
+import CompanyRegistrationGuard from './components/Auth/CompanyRegistrationGuard'
 import DashboardLayout from './components/Layout/DashboardLayout'
 import { AuthProvider } from './context/AuthContext'
 
@@ -24,7 +24,7 @@ import { AuthProvider } from './context/AuthContext'
 import Landing from './pages/Landing'
 import CompanyRegistration from './pages/CompanyRegistration'
 import Dashboard from './pages/Dashboard'
-import EmployeesSimple from './pages/EmployeesSimple'
+import Employees from './pages/Employees'
 import Payroll from './pages/Payroll'
 import Bonuses from './pages/Bonuses'
 import ENSManagement from './pages/ENSManagement'
@@ -189,9 +189,9 @@ function App() {
                   <Route 
                     path="/register" 
                     element={
-                      <RegistrationGuard>
+                      <CompanyRegistrationGuard>
                         <CompanyRegistration />
-                      </RegistrationGuard>
+                      </CompanyRegistrationGuard>
                     } 
                   />
                   
@@ -211,7 +211,7 @@ function App() {
                     element={
                       <ProtectedRoute>
                         <DashboardLayout>
-                          <EmployeesSimple />
+                          <Employees />
                         </DashboardLayout>
                       </ProtectedRoute>
                     }

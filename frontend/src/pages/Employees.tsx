@@ -36,6 +36,7 @@ import {
   Switch,
   FormControlLabel,
 } from '@mui/material'
+import { useAuth } from '../context/AuthContext'
 import {
   Add as AddIcon,
   Edit as EditIcon,
@@ -54,6 +55,7 @@ import { useAppDispatch } from '../store/store'
 import { addNotification } from '../store/slices/uiSlice'
 import { useBlockchain } from '../hooks/useBlockchain'
 import { useEmployees } from '../hooks/useApi'
+import CurrencyInput from '../components/CurrencyInput'
 import {
   TOKEN_ADDRESSES, 
   NETWORKS, 
@@ -94,6 +96,7 @@ interface EmployeeFormData {
 
 const Employees: React.FC = () => {
   const { address, isConnected } = useAccount()
+  const { company } = useAuth()
   const dispatch = useAppDispatch()
   
   // Blockchain hooks
@@ -150,6 +153,29 @@ const Employees: React.FC = () => {
     },
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
+
+  // Helper function to generate ENS subdomain from employee name
+  const generateSubdomain = (name: string): string => {
+    if (!name.trim()) return ''
+    
+    // Extract first name and clean it
+    const firstName = name.trim().split(' ')[0].toLowerCase()
+    
+    // Remove special characters and keep only alphanumeric
+    const cleanName = firstName.replace(/[^a-z0-9]/g, '')
+    
+    // Ensure minimum length and add random suffix if needed
+    if (cleanName.length < 3) {
+      return cleanName + Math.floor(Math.random() * 1000).toString()
+    }
+    
+    return cleanName
+  }
+
+  // Helper function to get company ENS domain
+  const getCompanyDomain = (): string => {
+    return company?.ensDomain || 'company.eth'
+  }
 
   /**
    * Validate form data
@@ -208,13 +234,26 @@ const Employees: React.FC = () => {
    * Handle form input change
    */
   const handleInputChange = (field: string, value: any) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: {
-        ...prev[field as keyof EmployeeFormData],
-        ...value,
-      },
-    }))
+    setFormData(prev => {
+      const newData = {
+        ...prev,
+        [field]: {
+          ...prev[field as keyof EmployeeFormData],
+          ...value,
+        },
+      }
+      
+      // Auto-generate ENS subdomain when name changes
+      if (field === 'personalInfo' && value.name !== undefined) {
+        const generatedSubdomain = generateSubdomain(value.name)
+        newData.ensDetails = {
+          ...newData.ensDetails,
+          subdomain: generatedSubdomain
+        }
+      }
+      
+      return newData
+    })
     
     // Clear error for this field
     if (errors[field]) {
@@ -233,6 +272,26 @@ const Employees: React.FC = () => {
 
     setLoading(true)
     try {
+      // Debug: Log the form data being sent to blockchain
+      console.log('🔍 Form data being sent to blockchain:', {
+        employee: formData.payrollSettings.walletAddress,
+        salary: formData.payrollSettings.salaryAmount,
+        subdomain: formData.ensDetails.subdomain,
+        frequency: formData.payrollSettings.paymentFrequency,
+        token: formData.payrollSettings.preferredToken,
+        position: formData.employmentDetails.position,
+        department: formData.employmentDetails.department,
+      })
+
+      // Validate wallet address before sending to blockchain
+      if (!formData.payrollSettings.walletAddress || !formData.payrollSettings.walletAddress.trim()) {
+        throw new Error('Employee wallet address is required')
+      }
+
+      if (!VALIDATION.ADDRESS_REGEX.test(formData.payrollSettings.walletAddress)) {
+        throw new Error('Invalid employee wallet address format')
+      }
+
       // First, add to blockchain
       const blockchainResult = await addEmployeeToBlockchain({
         employee: formData.payrollSettings.walletAddress,
@@ -263,7 +322,7 @@ const Employees: React.FC = () => {
         },
         ensDetails: {
           ...formData.ensDetails,
-          fullDomain: `${formData.ensDetails.subdomain}.company.eth`,
+          fullDomain: `${formData.ensDetails.subdomain}.${getCompanyDomain()}`,
           ensNode: '0x0000000000000000000000000000000000000000000000000000000000000000', // Will be updated
         },
         taxInformation: {
@@ -322,7 +381,7 @@ const Employees: React.FC = () => {
         },
         ensDetails: {
           ...formData.ensDetails,
-          fullDomain: `${formData.ensDetails.subdomain}.company.eth`,
+          fullDomain: `${formData.ensDetails.subdomain}.${getCompanyDomain()}`,
           ensNode: selectedEmployee.ensDetails.ensNode,
           resolverAddress: selectedEmployee.ensDetails.resolverAddress,
         },
@@ -919,14 +978,14 @@ const Employees: React.FC = () => {
               />
             </Grid>
             <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Salary Amount (ETH)"
-                type="number"
+              <CurrencyInput
                 value={formData.payrollSettings.salaryAmount}
-                onChange={(e) => handleInputChange('payrollSettings', { salaryAmount: e.target.value })}
-                error={!!errors.salaryAmount}
+                onChange={(value) => handleInputChange('payrollSettings', { salaryAmount: value })}
+                error={errors.salaryAmount}
                 helperText={errors.salaryAmount}
+                label="Salary Amount"
+                required
+                showConversion={true}
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -951,11 +1010,13 @@ const Employees: React.FC = () => {
                   value={formData.payrollSettings.preferredToken}
                   onChange={(e) => handleInputChange('payrollSettings', { preferredToken: e.target.value })}
                 >
-                  {Object.entries(TOKEN_ADDRESSES[currentNetwork as keyof typeof TOKEN_ADDRESSES] || {}).map(([symbol, address]) => (
-                    <MenuItem key={address} value={address}>
-                      {symbol}
-                    </MenuItem>
-                  ))}
+                  {Object.entries(TOKEN_ADDRESSES[currentNetwork as keyof typeof TOKEN_ADDRESSES] || {})
+                    .filter(([symbol, address]) => address !== '0x0000000000000000000000000000000000000000' || symbol === 'ETH')
+                    .map(([symbol, address]) => (
+                      <MenuItem key={`${symbol}-${address}`} value={address}>
+                        {symbol}
+                      </MenuItem>
+                    ))}
                 </Select>
               </FormControl>
             </Grid>
@@ -963,6 +1024,14 @@ const Employees: React.FC = () => {
             {/* ENS Details */}
             <Grid item xs={12}>
               <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>ENS Details</Typography>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                <Typography variant="body2">
+                  <strong>Company Domain:</strong> {getCompanyDomain()}
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 0.5 }}>
+                  Employee subdomains will be created under this domain
+                </Typography>
+              </Alert>
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
@@ -979,7 +1048,7 @@ const Employees: React.FC = () => {
               <TextField
                 fullWidth
                 label="Full Domain"
-                value={`${formData.ensDetails.subdomain}.company.eth`}
+                value={`${formData.ensDetails.subdomain}.${getCompanyDomain()}`}
                 disabled
                 helperText="This will be the employee's ENS domain"
               />
@@ -1067,14 +1136,14 @@ const Employees: React.FC = () => {
               <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>Payroll Settings</Typography>
             </Grid>
             <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Salary Amount"
-                type="number"
+              <CurrencyInput
                 value={formData.payrollSettings.salaryAmount}
-                onChange={(e) => handleInputChange('payrollSettings', { salaryAmount: e.target.value })}
-                error={!!errors.salaryAmount}
+                onChange={(value) => handleInputChange('payrollSettings', { salaryAmount: value })}
+                error={errors.salaryAmount}
                 helperText={errors.salaryAmount}
+                label="Salary Amount"
+                required
+                showConversion={true}
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -1096,6 +1165,14 @@ const Employees: React.FC = () => {
             {/* ENS Details */}
             <Grid item xs={12}>
               <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>ENS Details</Typography>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                <Typography variant="body2">
+                  <strong>Company Domain:</strong> {getCompanyDomain()}
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 0.5 }}>
+                  Employee subdomains will be created under this domain
+                </Typography>
+              </Alert>
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
@@ -1112,7 +1189,7 @@ const Employees: React.FC = () => {
               <TextField
                 fullWidth
                 label="Full Domain"
-                value={`${formData.ensDetails.subdomain}.company.eth`}
+                value={`${formData.ensDetails.subdomain}.${getCompanyDomain()}`}
                 disabled
                 helperText="This will be the employee's ENS domain"
               />

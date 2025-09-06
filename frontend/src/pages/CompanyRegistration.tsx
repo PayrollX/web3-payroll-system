@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Box,
@@ -40,7 +40,6 @@ import { useAccount } from 'wagmi'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { useAuth } from '../context/AuthContext'
 import { useENS } from '../hooks/useENS'
-import { waitForTransactionConfirmation, getEtherscanTxUrl } from '../utils/transactionVerification'
 
 /**
  * Company Registration Page
@@ -76,7 +75,6 @@ const CompanyRegistration: React.FC = () => {
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
   const [progress, setProgress] = useState<string>('')
   const [domainAvailable, setDomainAvailable] = useState<boolean | null>(null)
   const [domainCheckDetails, setDomainCheckDetails] = useState<any>(null)
@@ -84,12 +82,35 @@ const CompanyRegistration: React.FC = () => {
   const [registeredCompany, setRegisteredCompany] = useState<any>(null)
   const [showSuccessDialog, setShowSuccessDialog] = useState(false)
 
+  // Check for existing company
+  const checkExistingCompany = useCallback(async () => {
+    if (!address) return
+    
+    try {
+      const baseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api'
+      const response = await fetch(`${baseUrl}/companies/status`, {
+        headers: {
+          'x-wallet-address': address
+        }
+      })
+      
+      const data = await response.json()
+      
+      if (data.hasCompany && data.company) {
+        setRegisteredCompany(data.company)
+        // Don't redirect automatically, let user see they already have a company
+      }
+    } catch (error) {
+      console.error('Error checking existing company:', error)
+    }
+  }, [address])
+
   // Check if user already has a company registered
   useEffect(() => {
     if (isConnected && address) {
       checkExistingCompany()
     }
-  }, [isConnected, address])
+  }, [isConnected, address, checkExistingCompany])
 
   // Auto-advance to step 1 when wallet is connected
   useEffect(() => {
@@ -97,29 +118,6 @@ const CompanyRegistration: React.FC = () => {
       setActiveStep(1)
     }
   }, [isConnected, activeStep])
-
-  // Check for existing company
-  const checkExistingCompany = async () => {
-    try {
-      const baseUrl = (process.env.REACT_APP_API_URL || 'http://localhost:3001') + '/api'
-      const response = await fetch(`${baseUrl}/companies/profile`, {
-        headers: {
-          'x-wallet-address': address!
-        }
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        if (data.success) {
-          setRegisteredCompany(data.company)
-          setActiveStep(3) // Jump to confirmation step
-        }
-      }
-    } catch (error) {
-      console.log('No existing company found')
-    }
-  }
-
 
   // Handle form input changes
   const handleInputChange = (field: keyof CompanyFormData, value: string) => {
@@ -228,35 +226,16 @@ const CompanyRegistration: React.FC = () => {
         throw new Error(ensResult.error || 'ENS registration failed')
       }
       
-      console.log(`✅ ENS registration transaction submitted: ${ensResult.transactionHash}`)
+      console.log(`✅ ENS registration completed successfully!`)
+      console.log(`✅ Transaction: ${ensResult.transactionHash}`)
+      console.log(`✅ Block: ${ensResult.blockNumber}`)
+      console.log(`✅ Cost: ${ensResult.cost} ETH`)
+      
       const transactionHash = ensResult.transactionHash!
+      const blockNumber = ensResult.blockNumber || 0
 
-      // Step 2.5: Wait for proper transaction confirmation on Etherscan
-      console.log('⏳ Waiting for transaction confirmation on blockchain...')
-      console.log(`🔗 View transaction: ${getEtherscanTxUrl(transactionHash, 11155111)}`)
-      
-      setProgress('Waiting for blockchain confirmation...')
-      
-      const confirmationResult = await waitForTransactionConfirmation(
-        transactionHash,
-        11155111, // Sepolia chain ID
-        2, // Require 2 confirmations
-        180000, // 3 minutes timeout
-        process.env.REACT_APP_ETHERSCAN_API_KEY
-      )
-      
-      if (!confirmationResult.success || confirmationResult.status !== 'success') {
-        throw new Error(
-          confirmationResult.error || 
-          'Transaction failed or was not confirmed within timeout period'
-        )
-      }
-      
-      console.log(`✅ Transaction confirmed on blockchain! Block: ${confirmationResult.blockNumber}`)
-      console.log(`⛽ Gas used: ${confirmationResult.gasUsed}`)
-
-      // Step 3: Create company only after successful blockchain confirmation
-      console.log('🏢 Creating company after confirmed ENS registration...')
+      // Step 3: Create company immediately after successful ENS registration
+      console.log('🏢 Creating company profile...')
       setProgress('Creating company profile...')
       
       const createResponse = await fetch(`${baseUrl}/companies/create-after-ens`, {
@@ -268,8 +247,8 @@ const CompanyRegistration: React.FC = () => {
         body: JSON.stringify({
           companyData,
           transactionHash,
-          blockNumber: confirmationResult.blockNumber,
-          gasUsed: confirmationResult.gasUsed
+          blockNumber: blockNumber,
+          gasUsed: 0 // We don't need exact gas for company creation
         })
       })
 
@@ -283,7 +262,6 @@ const CompanyRegistration: React.FC = () => {
 
       // Set success state
       setRegisteredCompany(createData.company)
-      setSuccess(true)
       setShowSuccessDialog(true)
       setActiveStep(3)
       

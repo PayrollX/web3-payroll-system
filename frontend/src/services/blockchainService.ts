@@ -242,8 +242,41 @@ export class BlockchainService {
     try {
       const contract = this.getContract()
       
+      // Debug: Log parameters being sent to contract
+      console.log('🔍 Blockchain service - addEmployee parameters:', {
+        employee: params.employee,
+        salary: params.salary,
+        subdomain: params.subdomain,
+        frequency: params.frequency,
+        token: params.token,
+        position: params.position,
+        department: params.department
+      })
+      
       // Convert salary to wei
       const salaryWei = ethers.utils.parseEther(params.salary)
+      console.log('💰 Salary in wei:', salaryWei.toString())
+      
+      // Check if caller is owner
+      const owner = await contract.owner()
+      if (!this.signer) {
+        throw new Error('Signer not available')
+      }
+      const callerAddress = await this.signer.getAddress()
+      console.log('👤 Contract owner:', owner)
+      console.log('👤 Caller address:', callerAddress)
+      console.log('✅ Is caller owner?', owner.toLowerCase() === callerAddress.toLowerCase())
+      
+      // Check if employee already exists
+      try {
+        const employeeExists = await contract.employees(params.employee)
+        console.log('👥 Employee already exists:', employeeExists)
+        if (employeeExists && employeeExists.walletAddress !== '0x0000000000000000000000000000000000000000') {
+          throw new Error('Employee already exists in the contract')
+        }
+      } catch (error) {
+        console.log('👥 Employee check result:', error)
+      }
       
       // Estimate gas
       const gasEstimate = await contract.estimateGas.addEmployee(
